@@ -1,3 +1,3 @@
-## 1.0.0
+## 1.0.1
 
-* TODO: Versión inicial.
+* TODO: Actualización versión.

@@ -471,7 +471,7 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
 
         // Comparamos el DeviceInstanceId con el pasado como parámetro
         if (wcscmp(deviceInstanceIdBuffer, targetDeviceInstanceId.c_str()) == 0) {
-            std::wcout << L"Dispositivo encontrado: " << deviceInstanceIdBuffer << std::endl;
+            //std::wcout << L"Dispositivo encontrado: " << deviceInstanceIdBuffer << std::endl;
 
             // Abrir el dispositivo para escritura usando el DevicePath
             hUsb_ = CreateFile(
@@ -485,12 +485,12 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
             );
 
             if (hUsb_ == INVALID_HANDLE_VALUE) {
-                std::cerr << "Error al abrir el dispositivo: " << GetLastError() << std::endl;
+                //std::cerr << "Error al abrir el dispositivo: " << GetLastError() << std::endl;
                 SetupDiDestroyDeviceInfoList(deviceInfoSet);
                 return false;
             }
 
-            std::cout << "Dispositivo abierto correctamente." << std::endl;
+            //std::cout << "Dispositivo abierto correctamente." << std::endl;
             // Cerrar el handle del dispositivo
             // CloseHandle(hUsb_);
             // Limpiar los recursos

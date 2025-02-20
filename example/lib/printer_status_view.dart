@@ -175,11 +175,10 @@ class PrinterStatusWiewState extends State<PrinterStatusWiew> {
   void openUSBPort() async {
     try {
       // Reemplaza \ con \\
-      const deviceInstanceId = 'USB\\VID_067B&PID_2305\\5&3B800540&1&9';
-      //String formattedInstanceId = deviceInstanceId.replaceAll(r'\', r'\\');
+      //const deviceInstanceId = 'USB\\VID_067B&PID_2305\\5&3B800540&1&9';
+      const deviceInstanceId = 'USB\\VID_067B&PID_2305\\5&3B800540&1&1';
 
       final result = await tiPrinterPlugin.openUsbPort(deviceInstanceId);
-
       log('Result openPort USB: $result');
     } catch (e) {
       log('Error al abrir el puerto USB: $e');

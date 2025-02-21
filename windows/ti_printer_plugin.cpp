@@ -308,7 +308,7 @@ bool TiPrinterPlugin::SendCommandToSerial(std::vector<uint8_t> data) {
 
     if (hSerial_ == INVALID_HANDLE_VALUE) {
         // Si el puerto serial no está abierto
-        std::cerr << "El puerto serial no está abierto." << std::endl;
+        //std::cerr << "El puerto serial no está abierto." << std::endl;
         return FALSE;
     }
 
@@ -322,7 +322,7 @@ bool TiPrinterPlugin::SendCommandToSerial(std::vector<uint8_t> data) {
 
     if (!SetCommTimeouts(hSerial_, &timeouts)) {
         DWORD error_code = GetLastError();
-        std::cerr << "Error al configurar los tiempos de escritura: " << error_code << std::endl;
+        //std::cerr << "Error al configurar los tiempos de escritura: " << error_code << std::endl;
         return FALSE;
     }
 
@@ -332,7 +332,7 @@ bool TiPrinterPlugin::SendCommandToSerial(std::vector<uint8_t> data) {
     overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
     if (overlapped.hEvent == NULL) {
-        std::cerr << "Error al crear el evento para la escritura asincrónica." << std::endl;
+        //std::cerr << "Error al crear el evento para la escritura asincrónica." << std::endl;
         return FALSE;
     }
 
@@ -349,14 +349,14 @@ bool TiPrinterPlugin::SendCommandToSerial(std::vector<uint8_t> data) {
             status = GetOverlappedResult(hSerial_, &overlapped, &bytes_written, TRUE);
         } else {
             DWORD error_code = GetLastError();
-            std::cerr << "Error al enviar los datos al puerto serial: " << error_code << std::endl;
+            //std::cerr << "Error al enviar los datos al puerto serial: " << error_code << std::endl;
             success = FALSE;
         }
     }
 
     // Verificar si todos los bytes fueron enviados
     if (bytes_written != data_size) {
-        std::cerr << "No se enviaron todos los datos al puerto serial." << std::endl;
+        //std::cerr << "No se enviaron todos los datos al puerto serial." << std::endl;
         success = FALSE;
     }
 
@@ -375,7 +375,7 @@ std::vector<uint8_t> TiPrinterPlugin::ReadStatusSerial(const std::vector<uint8_t
 
     // Limpiar errores de comunicación y obtener el estado del puerto
     if (!ClearCommError(hSerial_, &errors, &status)) {
-        std::cerr << "Error al limpiar los errores del puerto: " << GetLastError() << std::endl;
+        //std::cerr << "Error al limpiar los errores del puerto: " << GetLastError() << std::endl;
         return {};
     }
 
@@ -388,7 +388,7 @@ std::vector<uint8_t> TiPrinterPlugin::ReadStatusSerial(const std::vector<uint8_t
     timeouts.WriteTotalTimeoutConstant = 500;  // 500 ms para la escritura
 
     if (!SetCommTimeouts(hSerial_, &timeouts)) {
-        std::cerr << "Error al configurar los tiempos de lectura: " << GetLastError() << std::endl;
+        //std::cerr << "Error al configurar los tiempos de lectura: " << GetLastError() << std::endl;
         return {};
     }
 
@@ -397,23 +397,23 @@ std::vector<uint8_t> TiPrinterPlugin::ReadStatusSerial(const std::vector<uint8_t
 
     // Enviar el comando DLE EOT (solicitud de estado) recibido como parámetro
     if (!WriteFile(hSerial_, command.data(), data_size, &bytes_written, NULL)) {
-        std::cerr << "Error al enviar el comando DLE EOT: " << GetLastError() << std::endl;
+        //std::cerr << "Error al enviar el comando DLE EOT: " << GetLastError() << std::endl;
         return {};
     }
 
-    std::cout << "Comando DLE EOT enviado, bytes escritos: " << bytes_written << std::endl;
+    //std::cout << "Comando DLE EOT enviado, bytes escritos: " << bytes_written << std::endl;
 
     // Leer la respuesta del estado de la impresora (1 byte)
     if (!ReadFile(hSerial_, response, sizeof(response), &bytes_read, NULL)) {
-        std::cerr << "Error al leer la respuesta del puerto: " << GetLastError() << std::endl;
+        //std::cerr << "Error al leer la respuesta del puerto: " << GetLastError() << std::endl;
         return {};
     }
 
     if (bytes_read > 0) {
-        std::cout << "Estado de la impresora leído: " << static_cast<int>(response[0]) << std::endl;
+        //std::cout << "Estado de la impresora leído: " << static_cast<int>(response[0]) << std::endl;
         return { static_cast<uint8_t>(response[0]) };
     } else {
-        std::cerr << "No se recibió respuesta de la impresora." << std::endl;
+        //std::cerr << "No se recibió respuesta de la impresora." << std::endl;
         return {};
     }
 }
@@ -430,7 +430,7 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
     HDEVINFO deviceInfoSet = SetupDiGetClassDevs(&guid, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
 
     if (deviceInfoSet == INVALID_HANDLE_VALUE) {
-        std::cerr << "Error al obtener el conjunto de dispositivos." << std::endl;
+        //std::cerr << "Error al obtener el conjunto de dispositivos." << std::endl;
         return false;
     }
 
@@ -449,7 +449,7 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
 
         // Obtén los detalles de la interfaz del dispositivo
         if (!SetupDiGetDeviceInterfaceDetail(deviceInfoSet, &deviceInterfaceData, deviceInterfaceDetailData, requiredSize, NULL, NULL)) {
-            std::cerr << "Error al obtener detalles del dispositivo." << std::endl;
+            //std::cerr << "Error al obtener detalles del dispositivo." << std::endl;
             continue;
         }
 
@@ -458,14 +458,14 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
         devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
 
         if (!SetupDiEnumDeviceInfo(deviceInfoSet, i, &devInfoData)) {
-            std::cerr << "Error al obtener el SP_DEVINFO_DATA." << std::endl;
+            //std::cerr << "Error al obtener el SP_DEVINFO_DATA." << std::endl;
             continue;
         }
 
         // Aquí obtenemos el DeviceInstanceId real
         WCHAR deviceInstanceIdBuffer[MAX_DEVICE_ID_LEN];
         if (CM_Get_Device_ID(devInfoData.DevInst, deviceInstanceIdBuffer, MAX_DEVICE_ID_LEN, 0) != CR_SUCCESS) {
-            std::cerr << "Error al obtener el DeviceInstanceId." << std::endl;
+            //std::cerr << "Error al obtener el DeviceInstanceId." << std::endl;
             continue;
         }
 
@@ -501,7 +501,7 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
 
     // Limpia los recursos si no se encontró el dispositivo
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
-    std::cerr << "Dispositivo no encontrado." << std::endl;
+    //std::cerr << "Dispositivo no encontrado." << std::endl;
     return false;
 }
 
@@ -518,7 +518,7 @@ bool TiPrinterPlugin::SendCommandToUsb(std::vector<uint8_t> data) {
 
   if (hUsb_ == INVALID_HANDLE_VALUE) {
       // Si el puerto USB no está abierto
-      std::cerr << "El puerto USB no está abierto." << std::endl;
+      //std::cerr << "El puerto USB no está abierto." << std::endl;
       return FALSE;
   }
 
@@ -528,7 +528,7 @@ bool TiPrinterPlugin::SendCommandToUsb(std::vector<uint8_t> data) {
   overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
   if (overlapped.hEvent == NULL) {
-      std::cerr << "Error al crear el evento para la escritura asincrónica." << std::endl;
+      //std::cerr << "Error al crear el evento para la escritura asincrónica." << std::endl;
       return FALSE;
   }
 
@@ -545,14 +545,14 @@ bool TiPrinterPlugin::SendCommandToUsb(std::vector<uint8_t> data) {
           status = GetOverlappedResult(hUsb_, &overlapped, &bytes_written, TRUE);
       } else {
           DWORD error_code = GetLastError();
-          std::cerr << "Error al enviar los datos al puerto USB: " << error_code << std::endl;
+          //std::cerr << "Error al enviar los datos al puerto USB: " << error_code << std::endl;
           success = FALSE;
       }
   }
 
   // Verificar si todos los bytes fueron enviados
   if (bytes_written != data_size) {
-      std::cerr << "No se enviaron todos los datos al puerto USB." << std::endl;
+      //std::cerr << "No se enviaron todos los datos al puerto USB." << std::endl;
       success = FALSE;
   }
 
@@ -570,7 +570,7 @@ std::vector<uint8_t> TiPrinterPlugin::ReadStatusUsb(const std::vector<uint8_t>& 
   DWORD command_size = static_cast<DWORD>(command.size());
 
   // Agregar salida por consola para el comando recibido
-  std::cout << "Comando recibido para enviar: ";
+  // std::cout << "Comando recibido para enviar: ";
   for (const auto& byte : command) {
       std::cout << std::hex << static_cast<int>(byte) << " ";  // Muestra en formato hexadecimal
   }
@@ -578,25 +578,25 @@ std::vector<uint8_t> TiPrinterPlugin::ReadStatusUsb(const std::vector<uint8_t>& 
 
   if (!WriteFile(hUsb_, command.data(), command_size, &bytes_written, NULL)) {
     DWORD error = GetLastError();
-    std::cerr << "Error al enviar el comando USB: " << error << std::endl;
+    //std::cerr << "Error al enviar el comando USB: " << error << std::endl;
     return {};
   }
 
-  std::cout << "Comando USB enviado, bytes escritos: " << bytes_written << std::endl;
+  //std::cout << "Comando USB enviado, bytes escritos: " << bytes_written << std::endl;
 
   // Leer la respuesta del dispositivo USB
   if (!ReadFile(hUsb_, response, sizeof(response), &bytes_read, NULL)) {
-      std::cerr << "Error al leer la respuesta del dispositivo USB: " << GetLastError() << std::endl;
+      //std::cerr << "Error al leer la respuesta del dispositivo USB: " << GetLastError() << std::endl;
       return {};
   }
 
   if (bytes_read > 0) {
-      std::cout << "Respuesta del dispositivo USB leída: " << static_cast<int>(response[0]) << std::endl;
+      //std::cout << "Respuesta del dispositivo USB leída: " << static_cast<int>(response[0]) << std::endl;
       // Retornar los datos leídos, aquí se asume que la respuesta es 1 byte, pero puedes ajustarlo según tu caso.
       //return { response, response + bytes_read };  // Devuelve un vector con los bytes leídos.
       return { static_cast<uint8_t>(response[0]) };
   } else {
-      std::cerr << "No se recibió respuesta del dispositivo USB." << std::endl;
+      //std::cerr << "No se recibió respuesta del dispositivo USB." << std::endl;
       return {};
   }
 }
@@ -606,7 +606,7 @@ void TiPrinterPlugin::GetUsbDevicesInstanceId() {
     //HDEVINFO deviceInfoSet = SetupDiGetClassDevsA(NULL, "USB", NULL, DIGCF_PRESENT | DIGCF_ALLCLASSES);
 
     if (deviceInfoSet == INVALID_HANDLE_VALUE) {
-        std::cerr << "Error obteniendo el conjunto de dispositivos USB." << std::endl;
+        //std::cerr << "Error obteniendo el conjunto de dispositivos USB." << std::endl;
         return;
     }
 
@@ -619,7 +619,7 @@ void TiPrinterPlugin::GetUsbDevicesInstanceId() {
         // Obtener el InstanceId
         char instanceId[1024];
         if (SetupDiGetDeviceInstanceIdA(deviceInfoSet, &deviceInfoData, instanceId, sizeof(instanceId), NULL)) {
-            std::cout << "InstanceId: " << instanceId << std::endl;
+           // std::cout << "InstanceId: " << instanceId << std::endl;
         }
     }
 
@@ -717,38 +717,5 @@ std::string TiPrinterPlugin::convertWStringToString(const std::wstring& wstr) {
     WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &result[0], sizeNeeded, NULL, NULL);
     return result;
 }
-
-/*
-bool TiPrinterPlugin::OpenUsbPort(const std::string& port_name) {
-  std::string formatted_port_name = "\\\\.\\USB001";
-  hUsb_ = CreateFileA(
-      formatted_port_name.c_str(),
-      GENERIC_READ | GENERIC_WRITE,
-      FILE_SHARE_READ | FILE_SHARE_WRITE,
-      nullptr,
-      OPEN_EXISTING,
-      FILE_ATTRIBUTE_NORMAL,
-      nullptr);
-
-    if (hUsb_ == INVALID_HANDLE_VALUE) {
-        return false;  // Devuelve false si no se puede abrir el puerto
-    }
-
-    COMMTIMEOUTS timeouts = {0};
-    timeouts.ReadIntervalTimeout = 50;
-    timeouts.ReadTotalTimeoutConstant = 50;
-    timeouts.ReadTotalTimeoutMultiplier = 10;
-    timeouts.WriteTotalTimeoutConstant = 50;
-    timeouts.WriteTotalTimeoutMultiplier = 10;
-
-    if (!SetCommTimeouts(hUsb_, &timeouts)) {
-        CloseHandle(hUsb_);
-        return false;  // Devuelve false si falla SetCommTimeouts
-    }
-
-    CloseHandle(hUsb_);
-    return true;
-}
-*/
 
 }  // namespace ti_printer_plugin

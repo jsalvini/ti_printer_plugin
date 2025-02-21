@@ -1,6 +1,6 @@
 name: ti_printer_plugin
 description: "Plugin para comunicación con impresoras termicas."
-version: 1.0.2
+version: 1.0.3
 homepage: https://github.com/jsalvini/ti_printer_plugin
 repository: https://github.com/jsalvini/ti_printer_plugin
 

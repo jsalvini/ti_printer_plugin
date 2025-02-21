@@ -321,7 +321,7 @@ bool TiPrinterPlugin::SendCommandToSerial(std::vector<uint8_t> data) {
     timeouts.WriteTotalTimeoutConstant = 2000;  // 2000 ms para operaciones de escritura
 
     if (!SetCommTimeouts(hSerial_, &timeouts)) {
-        DWORD error_code = GetLastError();
+        //DWORD error_code = GetLastError();
         //std::cerr << "Error al configurar los tiempos de escritura: " << error_code << std::endl;
         return FALSE;
     }
@@ -348,7 +348,7 @@ bool TiPrinterPlugin::SendCommandToSerial(std::vector<uint8_t> data) {
             // Esperar hasta que se complete la operación
             status = GetOverlappedResult(hSerial_, &overlapped, &bytes_written, TRUE);
         } else {
-            DWORD error_code = GetLastError();
+            //DWORD error_code = GetLastError();
             //std::cerr << "Error al enviar los datos al puerto serial: " << error_code << std::endl;
             success = FALSE;
         }
@@ -544,7 +544,7 @@ bool TiPrinterPlugin::SendCommandToUsb(std::vector<uint8_t> data) {
           // Esperar hasta que se complete la operación
           status = GetOverlappedResult(hUsb_, &overlapped, &bytes_written, TRUE);
       } else {
-          DWORD error_code = GetLastError();
+          //DWORD error_code = GetLastError();
           //std::cerr << "Error al enviar los datos al puerto USB: " << error_code << std::endl;
           success = FALSE;
       }
@@ -577,7 +577,7 @@ std::vector<uint8_t> TiPrinterPlugin::ReadStatusUsb(const std::vector<uint8_t>& 
   std::cout << std::dec << std::endl;  // Vuelve al formato decimal
 
   if (!WriteFile(hUsb_, command.data(), command_size, &bytes_written, NULL)) {
-    DWORD error = GetLastError();
+    //DWORD error = GetLastError();
     //std::cerr << "Error al enviar el comando USB: " << error << std::endl;
     return {};
   }

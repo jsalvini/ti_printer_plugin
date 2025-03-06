@@ -571,10 +571,10 @@ std::vector<uint8_t> TiPrinterPlugin::ReadStatusUsb(const std::vector<uint8_t>& 
 
   // Agregar salida por consola para el comando recibido
   // std::cout << "Comando recibido para enviar: ";
-  for (const auto& byte : command) {
-      std::cout << std::hex << static_cast<int>(byte) << " ";  // Muestra en formato hexadecimal
-  }
-  std::cout << std::dec << std::endl;  // Vuelve al formato decimal
+  // for (const auto& byte : command) {
+  //     std::cout << std::hex << static_cast<int>(byte) << " ";  // Muestra en formato hexadecimal
+  // }
+  // std::cout << std::dec << std::endl;  // Vuelve al formato decimal
 
   if (!WriteFile(hUsb_, command.data(), command_size, &bytes_written, NULL)) {
     //DWORD error = GetLastError();

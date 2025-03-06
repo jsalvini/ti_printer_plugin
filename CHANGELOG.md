@@ -6,3 +6,5 @@
 * TODO: Actualización versión, se comentan salidas por consola ti_printer_plugin.
 ## 1.0.3
 * TODO: Actualización versión, fix variable error y error_code ti_printer_plugin.cpp.
+## 1.0.4
+* TODO: Se elimina comandos esc pos consola en funcion ReadStatusUsb.

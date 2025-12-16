@@ -8,3 +8,5 @@
 * TODO: Actualización versión, fix variable error y error_code ti_printer_plugin.cpp.
 ## 1.0.4
 * TODO: Se elimina comandos esc pos consola en funcion ReadStatusUsb.
+## 1.0.5
+* TODO: Se agrega soporte para linux.

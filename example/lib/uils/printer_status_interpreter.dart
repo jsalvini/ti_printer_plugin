@@ -1,99 +1,77 @@
-import 'dart:developer';
 import 'dart:typed_data';
 
 class PrinterStatusInterpreter {
-  static void interpretOfflineCauseStatus(
-      Uint8List statusBytes, Function(bool, bool, bool, bool) updateState) {
-    if (statusBytes.isEmpty) {
-      log('No se pudo obtener el estado de causa de desconexión.');
-      return;
-    }
-
-    int status = statusBytes[0]; // El primer byte contiene el estado
-
-    bool coverOpen = (status & 0x04) != 0; // Bit 2: Cubierta abierta
-    bool paperFeedActive =
-        (status & 0x08) != 0; // Bit 3: Alimentación de papel activa
-    bool paperEndStop = (status & 0x20) != 0; // Bit 5: Parada por fin de papel
-    bool errorOccurred = (status & 0x40) != 0; // Bit 6: Error ocurrido
-
-    // Mostrar el estado en la consola
-    log('(n = 2) - Estado de causa de desconexión:\n');
-    log('Cubierta abierta: $coverOpen');
-    log('Alimentación de papel activa: $paperFeedActive');
-    log('Parada por fin de papel: $paperEndStop');
-    log('Error ocurrido: $errorOccurred');
-    updateState(coverOpen, paperFeedActive, paperEndStop, errorOccurred);
-  }
-
-  static void interpretErrorCauseStatus(
-      Uint8List statusBytes, Function(bool, bool, bool, bool) updateState) {
-    if (statusBytes.isEmpty) {
-      log('No se pudo obtener el estado de causa de error.');
-      return;
-    }
-
-    int status = statusBytes[0]; // El primer byte contiene el estado
-
-    bool recoverableError = (status & 0x04) != 0; // Bit 2: Error recuperable
-    bool cutterError = (status & 0x08) != 0; // Bit 3: Error del cortador
-    bool unrecoverableError =
-        (status & 0x20) != 0; // Bit 5: Error no recuperable
-    bool autoRecoverableError =
-        (status & 0x40) != 0; // Bit 6: Error auto-recuperable
-
-    // Mostrar el estado en la consola
-    log('(n = 3) - Estado de causa de error:');
-    log('Error recuperable: $recoverableError');
-    log('Error del cortador: $cutterError');
-    log('Error no recuperable: $unrecoverableError');
-    log('Error auto-recuperable: $autoRecoverableError');
-  }
-
-  static void interpretRollPaperSensorStatus(
-      Uint8List statusBytes, Function(bool, bool) updateState) {
-    if (statusBytes.isEmpty) {
-      log('No se pudo obtener el estado del sensor de papel.');
-      return;
-    }
-
-    int status = statusBytes[0]; // El primer byte contiene el estado
-
-    bool paperNearEnd = (status & 0x0C) != 0; // Bits 2-3: Papel cerca del fin
-    bool paperPresent = (status & 0x60) ==
-        0; // Bits 5-6: Papel presente (0 = presente, 1 = no hay papel)
-
-    // Mostrar el estado en la consola
-    log('(n = 4) - Estado del sensor de papel:\n');
-    log('Papel cerca del fin: $paperNearEnd');
-    log('Papel presente: $paperPresent');
-    updateState(paperNearEnd, paperPresent);
-  }
-
+  /// DLE EOT 1 - Printer status (n = 1)
+  /// Para Epson TM-T88V y familia.
   static void interpretOnlinePrinterStatus(
-      Uint8List statusBytes, Function(bool, bool, bool, bool) updateState) {
-    if (statusBytes.isEmpty) {
-      log('No se pudo obtener el estado de la impresora.');
+    Uint8List status,
+    void Function(
+            bool coverOpen, bool paperFeedButton, bool paperEndStop, bool error)
+        cb,
+  ) {
+    if (status.isEmpty) {
+      // si no hay respuesta, mejor no afirmar nada
+      cb(false, false, false, true); // tratar como error
       return;
     }
 
-    int status = statusBytes[0]; // El primer byte contiene el estado
+    final int b = status[0];
 
-    // Interpretar los bits del estado según el manual ESC/POS para n = 1
-    bool pin3High = (status & 0x04) !=
-        0; // Bit 2: Pin 3 del conector de desconexión del cajón
-    bool printerOnline =
-        (status & 0x08) == 0; // Bit 3: Impresora en línea (0 = En línea)
-    bool waitingRecovery =
-        (status & 0x20) != 0; // Bit 5: Esperando recuperación en línea
-    bool paperFeedPressed =
-        (status & 0x40) != 0; // Bit 6: Botón de alimentación de papel pulsado
+    // bit 3 = 0 -> online, 1 -> offline
+    final bool offline = (b & 0x08) != 0;
+    final bool error = offline; // aquí solo sabemos online/offline
 
-    // Mostrar el estado en la consola
-    log('(n = 1) - Estado online de la impresora:\n');
-    log('Cajón: $pin3High');
-    log('Impresora en línea: $printerOnline');
-    log('Esperando recuperación en línea: $waitingRecovery');
-    log('Botón de alimentación de papel pulsado: $paperFeedPressed');
+    // DLE EOT 1 NO trae tapa ni papel, eso lo sacamos de otros estados.
+    cb(false, false, false, error);
+  }
+
+  /// DLE EOT 2 - Offline cause status (n = 2)
+  static void interpretOfflineCauseStatus(
+    Uint8List status,
+    void Function(
+            bool coverOpen, bool paperFeedButton, bool paperEndStop, bool error)
+        cb,
+  ) {
+    if (status.isEmpty) {
+      cb(false, false, false, true);
+      return;
+    }
+
+    final int b = status[0];
+
+    // bit 2: 1 = tapa abierta
+    final bool coverOpen = (b & 0x04) != 0;
+    // bit 3: 1 = papel se está alimentando con botón FEED
+    final bool paperFeedButton = (b & 0x08) != 0;
+    // bit 5: 1 = impresión detenida por fin de papel
+    final bool paperEndStop = (b & 0x20) != 0;
+    // bit 6: 1 = error
+    final bool error = (b & 0x40) != 0;
+
+    cb(coverOpen, paperFeedButton, paperEndStop, error);
+  }
+
+  /// DLE EOT 4 - Roll paper sensor status (n = 4)
+  /// Devuelve nearEnd (papel por acabarse) y present (hay papel).
+  static void interpretRollPaperSensorStatus(
+    Uint8List status,
+    void Function(bool nearEnd, bool present) cb,
+  ) {
+    if (status.isEmpty) {
+      cb(false, false);
+      return;
+    }
+
+    final int b = status[0];
+
+    // bits 5–6: 11 = sin papel (paper end)
+    final bool paperEnd = (b & 0x60) == 0x60;
+
+    // bits 2–3: 11 = near-end; pero SOLO tiene sentido si no estamos ya en paper-end.
+    final bool nearEnd = !paperEnd && (b & 0x0C) == 0x0C;
+
+    final bool present = !paperEnd;
+
+    cb(nearEnd, present);
   }
 }

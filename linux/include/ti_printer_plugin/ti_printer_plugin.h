@@ -11,13 +11,14 @@ G_BEGIN_DECLS
 #define FLUTTER_PLUGIN_EXPORT
 #endif
 
+// Forward declarations de las structs generadas por G_DEFINE_TYPE
 typedef struct _TiPrinterPlugin TiPrinterPlugin;
-typedef struct {
-  GObjectClass parent_class;
-} TiPrinterPluginClass;
+typedef struct _TiPrinterPluginClass TiPrinterPluginClass;
 
-FLUTTER_PLUGIN_EXPORT GType ti_printer_plugin_get_type();
+// G_DEFINE_TYPE genera la implementación de esta función en el .cc
+FLUTTER_PLUGIN_EXPORT GType ti_printer_plugin_get_type(void);
 
+// Función de registro del plugin en Linux
 FLUTTER_PLUGIN_EXPORT void ti_printer_plugin_register_with_registrar(
     FlPluginRegistrar* registrar);
 

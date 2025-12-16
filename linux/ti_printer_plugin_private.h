@@ -1,3 +1,6 @@
+#ifndef FLUTTER_PLUGIN_TI_PRINTER_PLUGIN_PRIVATE_H_
+#define FLUTTER_PLUGIN_TI_PRINTER_PLUGIN_PRIVATE_H_
+
 #include <flutter_linux/flutter_linux.h>
 
 #include "include/ti_printer_plugin/ti_printer_plugin.h"
@@ -8,3 +11,5 @@
 
 // Handles the getPlatformVersion method call.
 FlMethodResponse *get_platform_version();
+
+#endif // FLUTTER_PLUGIN_TI_PRINTER_PLUGIN_PRIVATE_H_

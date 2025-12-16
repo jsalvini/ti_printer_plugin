@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ti_printer_plugin_example/printer_status_view.dart';
+import './ui/printer_status_view.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
     return const MaterialApp(
       home: Scaffold(
         //appBar: AppBar(title: const Text('Estado de la impresora')),
-        body: PrinterStatusWiew(),
+        body: PrinterStatusView(),
       ),
     );
   }

@@ -623,5 +623,4 @@ a usar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y/o vend
 copias del Software, y a permitir a las personas a las que se les proporcione el
 Software que lo hagan.
 
-...
 ```

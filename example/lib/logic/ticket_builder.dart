@@ -1,7 +1,8 @@
 // example/lib/logic/ticket_builder.dart
 import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -22,8 +23,6 @@ class TicketBuilder {
     printer = Generator(PaperSize.mm80, profile);
   }
 
-  /// Aquí pegas la lógica de armado de ticket que antes estaba en sendDataUsb
-  /// pero devolviendo la lista de bytes.
   Future<List<int>> buildTicket({
     required List<Item> items,
     required String nroReferencia,
@@ -34,9 +33,10 @@ class TicketBuilder {
   }) async {
     List<int> command = [];
 
-    // 1. Header
-    _createHeader(command);
+    // 1. Header (ahora sí esperamos a que cargue el logo)
+    await _createHeader(command);
 
+    // 2. Datos fijos de detalle (negocio, pos, etc.)
     _createDetailTicket(
       command,
       '99',
@@ -46,10 +46,10 @@ class TicketBuilder {
       '123456',
     );
 
-    // 2. Detalle items
+    // 3. Items
     _createItems(command, items);
 
-    // 3. Totales
+    // 4. Totales
     _createTotalTicket(
       command,
       items,
@@ -59,29 +59,26 @@ class TicketBuilder {
       cambio,
     );
 
-    // 4. QR
+    // 5. QR
     final qrImg = await _generateQR(qrData);
-    command += printer.imageRaster(qrImg, align: PosAlign.center);
+    command.addAll(printer.imageRaster(qrImg, align: PosAlign.center));
 
-    // 5. Pie del ticket
+    // 6. Pie
     _createFooter(command);
 
-    // 6. Corte
-    command += printer.cut();
+    // 7. Corte
+    command.addAll(printer.cut());
 
     return command;
   }
 
   void _createFooter(List<int> command) {
-    // Pie de página
-    command += printer.hr();
-    command += printer.text(
+    command.addAll(printer.hr());
+    command.addAll(printer.text(
       '¡Gracias por su compra!',
       styles: const PosStyles(align: PosAlign.center, codeTable: 'CP1252'),
-    );
+    ));
   }
-
-  // === A partir de aquí trasladas tal cual tus helpers privados ===
 
   Future<img.Image> _generateQR(String data) async {
     const double qrSize = 300;
@@ -111,102 +108,54 @@ class TicketBuilder {
     return img.decodePng(bytes)!;
   }
 
-  void _createHeader(List<int> command) async {
-    const pathLogo = 'assets/dino_logo_bg.png';
+  Future<void> _createHeader(List<int> command) async {
+    const pathLogo = 'assets/logo_bg.png';
     final logoImage = await _createLogo(pathLogo);
 
-    command = [];
-
     if (logoImage != null) {
-      //bytes += generator.feed(1);
-      command += printer.imageRaster(logoImage, align: PosAlign.center);
-      command += printer.feed(1);
+      command.addAll(printer.imageRaster(logoImage, align: PosAlign.center));
+      command.addAll(printer.feed(1));
     }
 
-    // Cabecera comprobante
-    command += printer.text(
+    // Cabecera comprobante (lo que ya tenías)
+    command.addAll(printer.text(
       'DINOSAURIO S.A',
       styles: const PosStyles(
-        align: PosAlign.center,
+        fontType: PosFontType.fontA,
+        bold: true,
         height: PosTextSize.size2,
         width: PosTextSize.size2,
+        align: PosAlign.center,
+        underline: true,
       ),
-      linesAfter: 1,
-    );
+    ));
 
-    command += printer.text(
-      'CUIT Nro: 30-69847147-2',
+    command.addAll(printer.text(
+      'Razon social: DINOSAURIO S.A',
       styles: const PosStyles(align: PosAlign.left),
-    );
-    command += printer.text(
-      'ING. BRUTOS: 9043011028',
+    ));
+    command.addAll(printer.text(
+      'Dirección: Av. Fuerza Aérea Argentina 1700',
       styles: const PosStyles(align: PosAlign.left),
-    );
-    command += printer.text(
-      'COD.VALID.RENTAS: 20000005668804',
+    ));
+    command.addAll(printer.text(
+      'CUIT: 30-50004623-7',
       styles: const PosStyles(align: PosAlign.left),
-    );
-    command += printer.text(
-      'INICIO ACT.: 03/12/2003',
+    ));
+    command.addAll(printer.text(
+      'IIBB: 901-427263-2',
       styles: const PosStyles(align: PosAlign.left),
-    );
+    ));
+    command.addAll(printer.text(
+      'Inicio de actividades: 23/06/1989',
+      styles: const PosStyles(align: PosAlign.left),
+    ));
 
-    command += printer.text(
-      'DOM.FISC: Rodriguez del Busto 4086',
-      styles: const PosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-    );
-    command += printer.row([
-      PosColumn(
-          text: 'Alto Verde',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-      PosColumn(
-          text: 'CP: 5009',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
-    command += printer.row([
-      PosColumn(
-          text: 'Cordoba Capital',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-      PosColumn(
-          text: 'Cordoba',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
-    command += printer.text(
-      'TEL: 0351-5261500',
-      styles: const PosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-    );
-    command += printer.text(
-      'DOM.COM: Rodriguez del Busto 4086',
-      styles: const PosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-    );
-    command += printer.row([
-      PosColumn(
-          text: 'Alto Verde',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-      PosColumn(
-          text: 'CP: 5009',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
-    command += printer.row([
-      PosColumn(
-          text: 'Cordoba Capital',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-      PosColumn(
-          text: 'Cordoba',
-          width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
-    command += printer.text(
+    command.addAll(printer.hr());
+    command.addAll(printer.text(
       'IVA RESPONSABLE INSCRIPTO',
       styles: const PosStyles(align: PosAlign.left),
-    );
+    ));
   }
 
   Future<img.Image?> _createLogo(String path) async {
@@ -232,11 +181,10 @@ class TicketBuilder {
   }
 
   void _createItems(List<int> command, List<Item> items) {
-    // Items comprobante
-    command += printer.hr();
-    command += printer.row([
+    command.addAll(printer.hr());
+    command.addAll(printer.row([
       PosColumn(
-        text: 'Item',
+        text: 'Producto',
         width: 7,
         styles: const PosStyles(align: PosAlign.left),
       ),
@@ -250,10 +198,10 @@ class TicketBuilder {
         width: 3,
         styles: const PosStyles(align: PosAlign.left),
       ),
-    ]);
+    ]));
 
     for (var item in items) {
-      command += printer.row([
+      command.addAll(printer.row([
         PosColumn(
           text: item.producto,
           width: 7,
@@ -265,11 +213,11 @@ class TicketBuilder {
           styles: const PosStyles(align: PosAlign.left),
         ),
         PosColumn(
-          text: '\$${item.precio}',
+          text: '\$${item.precio.toStringAsFixed(2)}',
           width: 3,
           styles: const PosStyles(align: PosAlign.left),
         ),
-      ]);
+      ]));
     }
   }
 
@@ -281,22 +229,29 @@ class TicketBuilder {
     String cajero,
     String legajo,
   ) {
-    // Detalle comprobante
-    command += printer.row([
+    command.addAll(printer.row([
       PosColumn(
           text: 'Negocio: $negocio',
-          width: 4,
+          width: 6,
           styles: const PosStyles(align: PosAlign.left, bold: true)),
       PosColumn(
-          text: '- POS: $negocio',
-          width: 4,
+          text: 'POS: $pos',
+          width: 6,
+          styles: const PosStyles(align: PosAlign.left, bold: true)),
+    ]));
+
+    command.addAll(printer.row([
+      PosColumn(
+          text: 'Punto de venta: $puntoVenta',
+          width: 6,
           styles: const PosStyles(align: PosAlign.left, bold: true)),
       PosColumn(
-          text: '- PV: $puntoVenta',
-          width: 4,
+          text: 'Caja: 1',
+          width: 6,
           styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
-    command += printer.row([
+    ]));
+
+    command.addAll(printer.row([
       PosColumn(
           text: 'Cajero: $cajero',
           width: 6,
@@ -305,9 +260,9 @@ class TicketBuilder {
           text: 'Legajo: $legajo',
           width: 6,
           styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
+    ]));
 
-    command += printer.row([
+    command.addAll(printer.row([
       PosColumn(
           text: 'Fecha: ${DateFormat('dd/MM/yy').format(DateTime.now())}',
           width: 6,
@@ -316,12 +271,12 @@ class TicketBuilder {
           text: 'Hora: ${DateFormat('HH:mm').format(DateTime.now())}',
           width: 6,
           styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
-    command += printer.hr();
-    command += printer.text(
+    ]));
+    command.addAll(printer.hr());
+    command.addAll(printer.text(
       'FACTURA B',
       styles: const PosStyles(align: PosAlign.left),
-    );
+    ));
   }
 
   void _createTotalTicket(
@@ -332,73 +287,76 @@ class TicketBuilder {
     double efectivo,
     double cambio,
   ) {
-    // Total
     final subTotal = items.fold<double>(
       0,
       (sum, item) => sum + (item.cantidad * item.precio),
     );
-    const descuentos = 0;
-    // Descuentos y subtotal
-    command += printer.hr();
-    command += printer.row([
-      PosColumn(
-          text: 'NroRef:',
-          width: 3,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-      PosColumn(
-          text: nroReferencia,
-          width: 3,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-      PosColumn(
-          text: 'Items:',
-          width: 3,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-      PosColumn(
-          text: '${items.length}',
-          width: 3,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
 
-    command += printer.row([
+    const descuentos = 0.0;
+    final totalCalculado = subTotal - descuentos;
+
+    command.addAll(printer.hr());
+    command.addAll(printer.row([
       PosColumn(
-          text: 'DESCUENTOS POR PROMOCIONES',
+          text: 'SUBTOTAL',
+          width: 8,
+          styles: const PosStyles(align: PosAlign.left, bold: true)),
+      PosColumn(
+          text: '\$${subTotal.toStringAsFixed(2)}',
+          width: 4,
+          styles: const PosStyles(align: PosAlign.left, bold: true)),
+    ]));
+
+    command.addAll(printer.row([
+      PosColumn(
+          text: 'DESCUENTOS',
           width: 8,
           styles: const PosStyles(align: PosAlign.left, bold: true)),
       PosColumn(
           text: '\$${descuentos.toStringAsFixed(2)}',
           width: 4,
           styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
+    ]));
 
-    var total = subTotal - descuentos;
-
-    command += printer.hr();
-    command += printer.row([
+    command.addAll(printer.hr());
+    command.addAll(printer.row([
       PosColumn(
           text: 'TOTAL',
           width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
+          styles: const PosStyles(
+            align: PosAlign.left,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          )),
       PosColumn(
-          text: '\$${total.toStringAsFixed(2)}',
+          text: '\$${totalCalculado.toStringAsFixed(2)}',
           width: 6,
-          styles: const PosStyles(align: PosAlign.left, bold: true)),
-    ]);
+          styles: const PosStyles(
+            align: PosAlign.left,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          )),
+    ]));
 
-    // Método de pago
-    command += printer.hr();
-    command += printer.text(
+    command.addAll(printer.hr());
+    command.addAll(printer.text(
+      'Nro ref: $nroReferencia',
+      styles: const PosStyles(align: PosAlign.left),
+    ));
+    command.addAll(printer.text(
       'Método de pago: Efectivo',
       styles: const PosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-    );
+    ));
 
-    // Información del cliente
-    command += printer.text(
+    command.addAll(printer.text(
       'Cliente: Juan Pérez',
       styles: const PosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-    );
-    command += printer.text(
+    ));
+    command.addAll(printer.text(
       'Número de cliente: 12345',
       styles: const PosStyles(align: PosAlign.left, codeTable: 'CP1252'),
-    );
+    ));
   }
 }

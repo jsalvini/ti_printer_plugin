@@ -1,6 +1,9 @@
 // example/lib/logic/printer_controller.dart
 
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
 import 'package:ti_printer_plugin/esc_pos_utils_platform/src/enums.dart';
 import 'package:ti_printer_plugin/ti_printer_plugin.dart';
 import 'package:ti_printer_plugin/esc_pos_utils_platform/src/capability_profile.dart';
@@ -22,10 +25,152 @@ class PrinterController extends ChangeNotifier {
   CapabilityProfile? _profile;
   TicketBuilder? _ticketBuilder;
 
+  Generator? _statusGenerator;
+
+  Timer? _usbMonitorTimer;
+  bool _usbPolling = false;
+  bool get isUsbMonitoring => _usbMonitorTimer != null;
+
   // ===== Helpers internos =====
 
+  Future<Generator> _getStatusGenerator() async {
+    _profile ??= await CapabilityProfile.load();
+    _statusGenerator ??= Generator(PaperSize.mm80, _profile!);
+    return _statusGenerator!;
+  }
+
+  Future<void> _pollUsbStatusOnce() async {
+    // Si no hay impresora seleccionada, nada que hacer
+    if (_state.selectedUsbPrinter == null) {
+      return;
+    }
+
+    final generator = await _getStatusGenerator();
+
+    bool enLinea = _state.enLineaUsb;
+    bool tapaAbierta = _state.tapaAbiertaUsb;
+    bool papelNearEnd = _state.papelPorAcabarseUsb;
+    bool papelPresente = _state.papelPresenteUsb;
+
+    // ===== 1) DLE EOT 1 – online status =====
+    final onlineCmd = Uint8List.fromList(generator.status());
+    _addLog('[USB] CMD online: ${_bytesToHex(onlineCmd)}');
+    final onlineRsp = await _plugin.readStatusUsb(onlineCmd);
+
+    if (onlineRsp == null || onlineRsp.isEmpty) {
+      _addLog(
+        '[USB] sin respuesta de impresora (posible apagada/desconectada), marcando como offline',
+      );
+
+      _update((s) => s.copyWith(
+            enLineaUsb: false,
+            tapaAbiertaUsb: true, // asumimos "no OK"
+            papelPorAcabarseUsb: true,
+            papelPresenteUsb: false,
+          ));
+
+      // opcional: detenemos el monitor para no seguir spameando
+      stopUsbMonitor();
+      return;
+    }
+
+    _addLog('[USB] RSP online: ${_bytesToHex(onlineRsp)}');
+    PrinterStatusInterpreter.interpretOnlinePrinterStatus(
+      onlineRsp,
+      (coverOpen, feed, paperEnd, error) {
+        enLinea = !error;
+        // aquí no sabemos tapa/papel, eso viene en otros comandos
+      },
+    );
+
+    // ===== 2) DLE EOT 4 – roll paper sensor =====
+    final paperCmd = Uint8List.fromList(generator.paperSensorStatus());
+    _addLog('[USB] CMD paper: ${_bytesToHex(paperCmd)}');
+    final paperRsp = await _plugin.readStatusUsb(paperCmd);
+    if (paperRsp != null && paperRsp.isNotEmpty) {
+      _addLog('[USB] RSP paper: ${_bytesToHex(paperRsp)}');
+      PrinterStatusInterpreter.interpretRollPaperSensorStatus(
+        paperRsp,
+        (nearEnd, present) {
+          papelNearEnd = nearEnd;
+          papelPresente = present;
+        },
+      );
+    }
+
+    // ===== 3) DLE EOT 2 – offline cause =====
+    final offCmd = Uint8List.fromList(generator.offLineStatus());
+    _addLog('[USB] CMD offline: ${_bytesToHex(offCmd)}');
+    final offRsp = await _plugin.readStatusUsb(offCmd);
+    if (offRsp != null && offRsp.isNotEmpty) {
+      _addLog('[USB] RSP offline: ${_bytesToHex(offRsp)}');
+      PrinterStatusInterpreter.interpretOfflineCauseStatus(
+        offRsp,
+        (coverOpen, feed, paperEnd, error) {
+          tapaAbierta = coverOpen;
+          if (error) enLinea = false;
+        },
+      );
+    }
+
+    // Actualizamos todo en un solo batch
+    _update((s) => s.copyWith(
+          enLineaUsb: enLinea,
+          tapaAbiertaUsb: tapaAbierta,
+          papelPorAcabarseUsb: papelNearEnd,
+          papelPresenteUsb: papelPresente,
+        ));
+  }
+
+  Future<void> startUsbAutoMonitor({
+    Duration interval = const Duration(seconds: 3),
+  }) async {
+    if (_usbMonitorTimer != null) return; // ya está corriendo
+
+    // 1) Asegurarnos de tener impresora seleccionada y puerto abierto
+    if (_state.selectedUsbPrinter == null) {
+      await refreshUsbPrinters();
+    }
+    if (_state.selectedUsbPrinter == null) {
+      _addLog('No hay impresoras USB disponibles para monitorizar');
+      return;
+    }
+
+    await openSelectedUsb();
+
+    // 2) Primer poll inmediato
+    await _pollUsbStatusOnce();
+
+    // 3) Timer periódico
+    _usbMonitorTimer = Timer.periodic(interval, (_) async {
+      if (_usbPolling) return;
+      _usbPolling = true;
+      try {
+        await _pollUsbStatusOnce();
+      } finally {
+        _usbPolling = false;
+      }
+    });
+
+    _addLog('Monitor USB iniciado (intervalo ${interval.inSeconds}s)');
+  }
+
+  void stopUsbMonitor() {
+    _usbMonitorTimer?.cancel();
+    _usbMonitorTimer = null;
+    _addLog('Monitor USB detenido');
+  }
+
+  @override
+  void dispose() {
+    stopUsbMonitor();
+    super.dispose();
+  }
+
   void _update(PrinterState Function(PrinterState) updater) {
-    _state = updater(_state);
+    final newState = updater(_state);
+    if (newState == _state) return;
+    _state = newState;
     notifyListeners();
   }
 
@@ -212,22 +357,34 @@ class PrinterController extends ChangeNotifier {
     required double cambio,
     required String qrData,
   }) async {
-    final builder = await _getTicketBuilder();
-    final bytes = await builder.buildTicket(
-      items: items,
-      nroReferencia: nroReferencia,
-      total: total,
-      efectivo: efectivo,
-      cambio: cambio,
-      qrData: qrData,
-    );
+    final wasMonitoring = isUsbMonitoring;
+    if (wasMonitoring) {
+      stopUsbMonitor();
+    }
 
-    final data = Uint8List.fromList(bytes);
-    final ok = await _plugin.sendCommandToUsb(data);
-    _addLog('sendCommandToUsb: $ok (len=${bytes.length})');
+    try {
+      final builder = await _getTicketBuilder();
+      final bytes = await builder.buildTicket(
+        items: items,
+        nroReferencia: nroReferencia,
+        total: total,
+        efectivo: efectivo,
+        cambio: cambio,
+        qrData: qrData,
+      );
 
-    if (!ok!) {
-      throw Exception('Falló el envío a la impresora USB');
+      _addLog('Ticket bytes length: ${bytes.length}');
+      final data = Uint8List.fromList(bytes);
+      final ok = await _plugin.sendCommandToUsb(data);
+      _addLog('sendCommandToUsb: $ok (len=${bytes.length})');
+
+      if (ok != true) {
+        throw Exception('Falló el envío a la impresora USB');
+      }
+    } finally {
+      if (wasMonitoring) {
+        startUsbAutoMonitor();
+      }
     }
   }
 

@@ -1,5 +1,7 @@
 // example/lib/ui/printer_status_view.dart
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:ti_printer_plugin/ti_printer_plugin.dart';
 import 'package:ti_printer_plugin_example/item.dart';
@@ -22,6 +24,11 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
     super.initState();
     _controller = PrinterController(TiPrinterPlugin());
     _controller.initPlatform();
+    // Windows + Linux: arranca monitor automáticamente
+    if (Platform.isWindows || Platform.isLinux) {
+      // No hace falta esperar, es async internamente
+      _controller.startUsbAutoMonitor();
+    }
   }
 
   @override
@@ -260,6 +267,24 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
               },
               child: const Text('Imprimir ticket'),
             ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _usbStatusIcon(state),
+                  color: _usbStatusColor(state),
+                  size: 40,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  state.enLineaUsb
+                      ? 'Impresora USB en línea'
+                      : 'Impresora USB fuera de línea',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -323,5 +348,21 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(e.toString())),
     );
+  }
+
+  IconData _usbStatusIcon(PrinterState s) {
+    if (!s.enLineaUsb) return Icons.power_off; // offline
+    if (!s.papelPresenteUsb) return Icons.print_disabled; // sin papel
+    if (s.tapaAbiertaUsb || s.papelPorAcabarseUsb) {
+      return Icons.warning;
+    }
+    return Icons.print; // todo OK
+  }
+
+  Color _usbStatusColor(PrinterState s) {
+    if (!s.enLineaUsb) return Colors.red;
+    if (!s.papelPresenteUsb) return Colors.orange;
+    if (s.tapaAbiertaUsb || s.papelPorAcabarseUsb) return Colors.amber;
+    return Colors.green;
   }
 }

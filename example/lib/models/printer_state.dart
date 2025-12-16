@@ -1,8 +1,9 @@
 // example/lib/models/printer_state.dart
 import 'package:flutter/foundation.dart';
+import 'package:equatable/equatable.dart';
 
 @immutable
-class PrinterState {
+class PrinterState extends Equatable {
   final bool enLineaSerial;
   final bool tapaAbiertaSerial;
   final bool papelPorAcabarseSerial;
@@ -59,4 +60,19 @@ class PrinterState {
       logs: logs ?? this.logs,
     );
   }
+
+  @override
+  List<Object?> get props => [
+        enLineaSerial,
+        tapaAbiertaSerial,
+        papelPorAcabarseSerial,
+        papelPresenteSerial,
+        enLineaUsb,
+        tapaAbiertaUsb,
+        papelPorAcabarseUsb,
+        papelPresenteUsb,
+        usbPrinters,
+        selectedUsbPrinter,
+        logs,
+      ];
 }

@@ -10,3 +10,5 @@
 * TODO: Se elimina comandos esc pos consola en funcion ReadStatusUsb.
 ## 1.0.5
 * TODO: Se agrega soporte para linux.
+## 1.0.6
+* TODO: Fix errores pub.dev.

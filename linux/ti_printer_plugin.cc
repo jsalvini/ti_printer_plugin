@@ -112,6 +112,10 @@ static bool close_usb_port(TiPrinterPlugin *self)
     return false;
   if (self->usb_fd >= 0)
   {
+
+    // Para asegurar que todos los datos se envíen antes de cerrar
+    fsync(self->usb_fd);
+
     if (close(self->usb_fd) == 0)
     {
       self->usb_fd = -1;

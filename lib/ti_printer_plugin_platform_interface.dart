@@ -57,6 +57,10 @@ abstract class TiPrinterPluginPlatform extends PlatformInterface {
     throw UnimplementedError('openUsbPort() has not been implemented.');
   }
 
+  Future<bool?> closeUsbPort() {
+    throw UnimplementedError('closeUsbPort() has not been implemented.');
+  }
+
   Future<Uint8List?> readStatusUsb(Uint8List command) {
     throw UnimplementedError('readStatusUsb() has not been implemented.');
   }

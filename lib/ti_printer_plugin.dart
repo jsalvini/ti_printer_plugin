@@ -31,6 +31,10 @@ class TiPrinterPlugin {
     return TiPrinterPluginPlatform.instance.openUsbPort(deviceInstanceId);
   }
 
+  Future<bool?> closeUsbPort() {
+    return TiPrinterPluginPlatform.instance.closeUsbPort();
+  }
+
   Future<Uint8List?> readStatusUsb(Uint8List command) {
     return TiPrinterPluginPlatform.instance.readStatusUsb(command);
   }

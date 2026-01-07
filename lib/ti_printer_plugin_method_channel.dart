@@ -108,6 +108,17 @@ class MethodChannelTiPrinterPlugin extends TiPrinterPluginPlatform {
   }
 
   @override
+  Future<bool?> closeUsbPort() async {
+    try {
+      final bool? result = await methodChannel.invokeMethod('closeUsbPort');
+      return result;
+    } on PlatformException {
+      //log("Error al cerrar el puerto USB: ${e.message}");
+      return false;
+    }
+  }
+
+  @override
   Future<Uint8List?> readStatusUsb(Uint8List command) async {
     try {
       Uint8List commandBytes = Uint8List.fromList(command);

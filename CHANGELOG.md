@@ -12,3 +12,5 @@
 * TODO: Se agrega soporte para linux.
 ## 1.0.6
 * TODO: Fix errores pub.dev.
+## 1.0.7
+* TODO: Se agrega soporte para closeUsbPort.

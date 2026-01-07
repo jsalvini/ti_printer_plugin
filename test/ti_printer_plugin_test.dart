@@ -51,6 +51,11 @@ class MockTiPrinterPluginPlatform
   Future<bool?> sendCommandToUsb(Uint8List command) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<bool?> closeUsbPort() {
+    throw UnimplementedError();
+  }
 }
 
 void main() {

@@ -50,7 +50,7 @@ abstract class TiPrinterPluginPlatform extends PlatformInterface {
   }
 
   Future<List<String>> getUsbPrinters() {
-    return TiPrinterPluginPlatform.instance.getUsbPrinters();
+    throw UnimplementedError('getUsbPrinters() has not been implemented.');
   }
 
   Future<bool?> openUsbPort(String deviceInstanceId) {

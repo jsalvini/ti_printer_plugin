@@ -14,3 +14,5 @@
 * TODO: Fix errores pub.dev.
 ## 1.0.7
 * TODO: Se agrega soporte para closeUsbPort.
+## 1.0.8
+* TODO: Se agrega fix error MissingPluginException(No implementation found for method closeUsbPort on channel ti_printer_plugin).

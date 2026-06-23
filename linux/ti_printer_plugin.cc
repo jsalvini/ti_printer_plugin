@@ -249,6 +249,26 @@ static void ti_printer_plugin_handle_method_call(
   {
     response = get_platform_version();
   }
+  else if (std::strcmp(method, "openSerialPort") == 0)
+  {
+    g_autoptr(FlValue) result = fl_value_new_bool(FALSE);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  }
+  else if (std::strcmp(method, "closeSerialPort") == 0)
+  {
+    g_autoptr(FlValue) result = fl_value_new_bool(FALSE);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  }
+  else if (std::strcmp(method, "sendCommandToSerial") == 0)
+  {
+    g_autoptr(FlValue) result = fl_value_new_bool(FALSE);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  }
+  else if (std::strcmp(method, "readStatusSerial") == 0)
+  {
+    g_autoptr(FlValue) result = fl_value_new_uint8_list(nullptr, 0);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  }
   else if (std::strcmp(method, "getUsbPrinters") == 0)
   {
     // Devuelve una lista de rutas /dev/... como List<String>
@@ -292,8 +312,7 @@ static void ti_printer_plugin_handle_method_call(
     bool ok = close_usb_port(self);
     if (ok)
     {
-      g_autoptr(FlValue) result =
-          fl_value_new_string("Puerto USB cerrado con éxito.");
+      g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
       response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
     }
     else

@@ -277,11 +277,14 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
                   size: 40,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  state.enLineaUsb
-                      ? 'Impresora USB en línea'
-                      : 'Impresora USB fuera de línea',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    state.enLineaUsb
+                        ? 'Impresora USB en línea'
+                        : 'Impresora USB fuera de línea',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ],
             ),
@@ -339,7 +342,12 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
         Icon(ok ? Icons.check_circle : Icons.error,
             color: ok ? Colors.green : Colors.red),
         const SizedBox(width: 8),
-        Text(ok ? okText : failText),
+        Expanded(
+          child: Text(
+            ok ? okText : failText,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }

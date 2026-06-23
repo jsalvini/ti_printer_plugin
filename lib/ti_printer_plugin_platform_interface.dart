@@ -25,27 +25,27 @@ abstract class TiPrinterPluginPlatform extends PlatformInterface {
     _instance = instance;
   }
 
-  Future<String?> getPlatformVersion() {
+  Future<String> getPlatformVersion() {
     throw UnimplementedError('platformVersion() has not been implemented.');
   }
 
-  Future<bool?> openSerialPort(String portName, int baudRate) {
+  Future<bool> openSerialPort(String portName, int baudRate) {
     throw UnimplementedError('openSerialPort() has not been implemented.');
   }
 
-  Future<bool?> closeSerialPort() async {
+  Future<bool> closeSerialPort() async {
     throw UnimplementedError('closeSerialPort() has not been implemented.');
   }
 
-  Future<Uint8List?> readStatusSerial(Uint8List command) async {
+  Future<Uint8List> readStatusSerial(Uint8List command) async {
     throw UnimplementedError('readStatusSerial() has not been implemented.');
   }
 
-  Future<bool?> sendCommandToSerial(Uint8List command) async {
+  Future<bool> sendCommandToSerial(Uint8List command) async {
     throw UnimplementedError('sendCommandToSerial() has not been implemented.');
   }
 
-  Future<bool?> sendCommandToUsb(Uint8List command) async {
+  Future<bool> sendCommandToUsb(Uint8List command) async {
     throw UnimplementedError('sendCommandToUsb() has not been implemented.');
   }
 
@@ -53,15 +53,15 @@ abstract class TiPrinterPluginPlatform extends PlatformInterface {
     throw UnimplementedError('getUsbPrinters() has not been implemented.');
   }
 
-  Future<bool?> openUsbPort(String deviceInstanceId) {
+  Future<bool> openUsbPort(String deviceInstanceId) {
     throw UnimplementedError('openUsbPort() has not been implemented.');
   }
 
-  Future<bool?> closeUsbPort() {
+  Future<bool> closeUsbPort() {
     throw UnimplementedError('closeUsbPort() has not been implemented.');
   }
 
-  Future<Uint8List?> readStatusUsb(Uint8List command) {
+  Future<Uint8List> readStatusUsb(Uint8List command) {
     throw UnimplementedError('readStatusUsb() has not been implemented.');
   }
 }

@@ -1,18 +1,39 @@
 ## 1.0.0
-* TODO: Versión inicial.
+
+- Versión inicial del plugin.
+
 ## 1.0.1
-* TODO: Actualización versión, se eliminan salidas log.
+
+- Se eliminan salidas de log.
+
 ## 1.0.2
-* TODO: Actualización versión, se comentan salidas por consola ti_printer_plugin.
+
+- Se comentan salidas por consola en `ti_printer_plugin`.
+
 ## 1.0.3
-* TODO: Actualización versión, fix variable error y error_code ti_printer_plugin.cpp.
+
+- Se corrige el manejo de `error` y `error_code` en `ti_printer_plugin.cpp`.
+
 ## 1.0.4
-* TODO: Se elimina comandos esc pos consola en funcion ReadStatusUsb.
+
+- Se eliminan trazas de comandos ESC/POS en consola dentro de `ReadStatusUsb`.
+
 ## 1.0.5
-* TODO: Se agrega soporte para linux.
+
+- Se agrega soporte para Linux.
+
 ## 1.0.6
-* TODO: Fix errores pub.dev.
+
+- Se corrigen errores para publicacion y validacion en pub.dev.
+
 ## 1.0.7
-* TODO: Se agrega soporte para closeUsbPort.
+
+- Se agrega soporte para `closeUsbPort`.
+
 ## 1.0.8
-* TODO: Se agrega fix error MissingPluginException(No implementation found for method closeUsbPort on channel ti_printer_plugin).
+
+- Se corrige `MissingPluginException` para `closeUsbPort` en el canal `ti_printer_plugin`.
+
+## 1.0.9
+
+- Se corrige en Windows `MissingPluginException` para `closeUsbPort` en el canal `ti_printer_plugin`.

@@ -50,6 +50,7 @@ Incluye:
 
 - 🔌 Detección de impresoras USB (Windows y Linux).
 - 🖨️ Apertura y cierre de puerto USB.
+- 🧰 Soporte de puerto serial disponible actualmente solo en Windows.
 - 🧾 Envío de comandos ESC/POS “raw” a la impresora.
 - 📡 Lectura de estado de impresora usando comandos **DLE EOT**:
   - `DLE EOT 1` – estado online.
@@ -68,16 +69,19 @@ Incluye:
 
 - **Windows**:
   - Plugin nativo en C++ (archivos en `windows/`).
-  - Envío de datos raw al spooler / dispositivo USB.
+  - Soporte para impresoras USB raw.
+  - Soporte para puertos seriales (`COMx`).
+  - Lectura de estado ESC/POS por USB y serial.
 
 - **Linux**:
   - Plugin nativo en C++ (archivo principal: `linux/ti_printer_plugin.cc`).
-  - Detección de dispositivos en:
+  - Soporte para impresoras USB/TTY detectadas como:
     - `/dev/usb/lp*`
     - `/dev/ttyUSB*`
     - `/dev/ttyACM*`
   - Escritura bloqueante a los dispositivos (`open` + `write` + `fsync`).
-  - Lectura de estados con `select` + `read`.
+  - Lectura de estados ESC/POS por USB con `select` + `read`.
+  - La API serial de Dart existe, pero actualmente responde como no soportada en Linux.
 
 > **Nota:** Android, iOS y Web no están soportados por este plugin.
 
@@ -155,14 +159,20 @@ Dentro de `lib/` (raíz del plugin):
 
 La API expone métodos como:
 
-- `Future<String?> getPlatformVersion()`
+- `Future<String> getPlatformVersion()`
 - `Future<List<String>> getUsbPrinters()`
-- `Future<bool?> openUsbPort(String deviceInstanceId)`
-- `Future<String?> closeUsbPort()`
-- `Future<bool?> sendCommandToUsb(Uint8List data)`
-- `Future<Uint8List?> readStatusUsb(Uint8List command)`
-- `Future<bool?> openSerialPort(String port, int baudRate)`
-- `Future<Uint8List?> readStatusSerial(Uint8List command)`
+- `Future<bool> openUsbPort(String deviceInstanceId)`
+- `Future<bool> closeUsbPort()`
+- `Future<bool> sendCommandToUsb(Uint8List data)`
+- `Future<Uint8List> readStatusUsb(Uint8List command)`
+- `Future<bool> openSerialPort(String port, int baudRate)`
+- `Future<Uint8List> readStatusSerial(Uint8List command)`
+
+### Contrato de respuestas
+
+- Los métodos booleanos (`openUsbPort`, `closeUsbPort`, `sendCommandToUsb`, `openSerialPort`, etc.) devuelven `true` en éxito y `false` en fallo o si la capacidad no está soportada en la plataforma actual.
+- Los métodos `readStatusUsb` y `readStatusSerial` devuelven un `Uint8List` con datos cuando la impresora responde.
+- Si no hay respuesta, ocurre un error nativo o la capacidad no está soportada, las lecturas de estado devuelven un `Uint8List` vacío.
 
 #### Capa nativa Windows
 
@@ -313,7 +323,7 @@ final printers = await plugin.getUsbPrinters(); // List<String>
 final ok = await plugin.openUsbPort(printers.first);
 
 // Cerrar el puerto USB
-final message = await plugin.closeUsbPort();
+final closed = await plugin.closeUsbPort();
 ```
 
 ### Lectura de estado ESC-POS
@@ -337,6 +347,10 @@ final rspPaper = await plugin.readStatusUsb(cmdPaper);
 // DLE EOT 2 – offline cause
 final cmdOffline = Uint8List.fromList(generator.offLineStatus());
 final rspOffline = await plugin.readStatusUsb(cmdOffline);
+
+if (rspOnline.isEmpty) {
+  // Sin respuesta, error nativo o capacidad no soportada.
+}
 ```
 
 Lo que hagas con esos bytes de respuesta (interpretar flags, actualizar UI, etc.) ya es responsabilidad de tu aplicación.  
@@ -348,7 +362,7 @@ Si ya tienes tus bytes ESC/POS construidos (por ejemplo un ticket):
 
 ```dart
 final Uint8List data = Uint8List.fromList([...]);
-final bool? ok = await plugin.sendCommandToUsb(data);
+final bool ok = await plugin.sendCommandToUsb(data);
 if (ok != true) {
   throw Exception('Error enviando datos a la impresora USB');
 }

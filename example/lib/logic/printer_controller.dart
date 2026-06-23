@@ -57,7 +57,7 @@ class PrinterController extends ChangeNotifier {
     _addLog('[USB] CMD online: ${_bytesToHex(onlineCmd)}');
     final onlineRsp = await _plugin.readStatusUsb(onlineCmd);
 
-    if (onlineRsp == null || onlineRsp.isEmpty) {
+    if (onlineRsp.isEmpty) {
       _addLog(
         '[USB] sin respuesta de impresora (posible apagada/desconectada), marcando como offline',
       );
@@ -87,7 +87,7 @@ class PrinterController extends ChangeNotifier {
     final paperCmd = Uint8List.fromList(generator.paperSensorStatus());
     _addLog('[USB] CMD paper: ${_bytesToHex(paperCmd)}');
     final paperRsp = await _plugin.readStatusUsb(paperCmd);
-    if (paperRsp != null && paperRsp.isNotEmpty) {
+    if (paperRsp.isNotEmpty) {
       _addLog('[USB] RSP paper: ${_bytesToHex(paperRsp)}');
       PrinterStatusInterpreter.interpretRollPaperSensorStatus(
         paperRsp,
@@ -102,7 +102,7 @@ class PrinterController extends ChangeNotifier {
     final offCmd = Uint8List.fromList(generator.offLineStatus());
     _addLog('[USB] CMD offline: ${_bytesToHex(offCmd)}');
     final offRsp = await _plugin.readStatusUsb(offCmd);
-    if (offRsp != null && offRsp.isNotEmpty) {
+    if (offRsp.isNotEmpty) {
       _addLog('[USB] RSP offline: ${_bytesToHex(offRsp)}');
       PrinterStatusInterpreter.interpretOfflineCauseStatus(
         offRsp,
@@ -195,7 +195,7 @@ class PrinterController extends ChangeNotifier {
   // ===== API pública que usará la UI =====
 
   Future<void> initPlatform() async {
-    final version = await _plugin.getPlatformVersion() ?? 'Unknown';
+    final version = await _plugin.getPlatformVersion();
     _addLog('Platform: $version');
   }
 
@@ -204,18 +204,28 @@ class PrinterController extends ChangeNotifier {
   Future<void> openSerialPort(String port, int baudRate) async {
     final result = await _plugin.openSerialPort(port, baudRate);
     _addLog('openSerialPort($port, $baudRate): $result');
+
+    if (!result) {
+      _addLog(
+        '[SERIAL] apertura no disponible o fallida en la plataforma actual',
+      );
+    }
   }
 
   Future<void> checkSerialStatus() async {
     final profile = await CapabilityProfile.load();
     final generator = Generator(PaperSize.mm80, profile);
 
+    _addLog(
+      '[SERIAL] si la plataforma no soporta serial, las lecturas devolveran bytes vacios',
+    );
+
     // DLE EOT 1
     final statusCmd = Uint8List.fromList(generator.status());
     _addLog('[SERIAL] CMD online: ${_bytesToHex(statusCmd)}');
     final online = await _plugin.readStatusSerial(statusCmd);
 
-    if (online != null && online.isNotEmpty) {
+    if (online.isNotEmpty) {
       _addLog('[SERIAL] RSP online: ${_bytesToHex(online)}');
       PrinterStatusInterpreter.interpretOnlinePrinterStatus(
         online,
@@ -232,7 +242,7 @@ class PrinterController extends ChangeNotifier {
     final paperCmd = Uint8List.fromList(generator.paperSensorStatus());
     _addLog('[SERIAL] CMD paper: ${_bytesToHex(paperCmd)}');
     final paper = await _plugin.readStatusSerial(paperCmd);
-    if (paper != null && paper.isNotEmpty) {
+    if (paper.isNotEmpty) {
       _addLog('[SERIAL] RSP paper: ${_bytesToHex(paper)}');
       PrinterStatusInterpreter.interpretRollPaperSensorStatus(
         paper,
@@ -249,7 +259,7 @@ class PrinterController extends ChangeNotifier {
     final offCmd = Uint8List.fromList(generator.offLineStatus());
     _addLog('[SERIAL] CMD offline: ${_bytesToHex(offCmd)}');
     final off = await _plugin.readStatusSerial(offCmd);
-    if (off != null && off.isNotEmpty) {
+    if (off.isNotEmpty) {
       _addLog('[SERIAL] RSP offline: ${_bytesToHex(off)}');
       PrinterStatusInterpreter.interpretOfflineCauseStatus(
         off,
@@ -288,6 +298,10 @@ class PrinterController extends ChangeNotifier {
     }
     final result = await _plugin.openUsbPort(device);
     _addLog('openUsbPort($device): $result');
+
+    if (!result) {
+      throw Exception('No se pudo abrir el puerto USB seleccionado');
+    }
   }
 
   Future<void> checkUsbStatus() async {
@@ -299,7 +313,7 @@ class PrinterController extends ChangeNotifier {
     _addLog('[USB] CMD online: ${_bytesToHex(statusCmd)}');
     final online = await _plugin.readStatusUsb(statusCmd);
 
-    if (online != null && online.isNotEmpty) {
+    if (online.isNotEmpty) {
       _addLog('[USB] RSP online: ${_bytesToHex(online)}');
       PrinterStatusInterpreter.interpretOnlinePrinterStatus(
         online,
@@ -316,7 +330,7 @@ class PrinterController extends ChangeNotifier {
     final paperCmd = Uint8List.fromList(generator.paperSensorStatus());
     _addLog('[USB] CMD paper: ${_bytesToHex(paperCmd)}');
     final paper = await _plugin.readStatusUsb(paperCmd);
-    if (paper != null && paper.isNotEmpty) {
+    if (paper.isNotEmpty) {
       _addLog('[USB] RSP paper: ${_bytesToHex(paper)}');
       PrinterStatusInterpreter.interpretRollPaperSensorStatus(
         paper,
@@ -333,7 +347,7 @@ class PrinterController extends ChangeNotifier {
     final offCmd = Uint8List.fromList(generator.offLineStatus());
     _addLog('[USB] CMD offline: ${_bytesToHex(offCmd)}');
     final off = await _plugin.readStatusUsb(offCmd);
-    if (off != null && off.isNotEmpty) {
+    if (off.isNotEmpty) {
       _addLog('[USB] RSP offline: ${_bytesToHex(off)}');
       PrinterStatusInterpreter.interpretOfflineCauseStatus(
         off,
@@ -378,7 +392,7 @@ class PrinterController extends ChangeNotifier {
       final ok = await _plugin.sendCommandToUsb(data);
       _addLog('sendCommandToUsb: $ok (len=${bytes.length})');
 
-      if (ok != true) {
+      if (!ok) {
         throw Exception('Falló el envío a la impresora USB');
       }
     } finally {

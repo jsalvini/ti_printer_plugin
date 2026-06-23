@@ -33,7 +33,7 @@ class TiPrinterPlugin : public flutter::Plugin {
     std::vector<uint8_t> ReadStatusSerial(const std::vector<uint8_t>& command);
 
     bool OpenUsbPort(const std::string& device_instance_id);
-    void CloseUsbPort();
+    bool CloseUsbPort();
     std::vector<std::wstring> ListUsbInstance();
     std::string convertWStringToString(const std::wstring& wstr);
 

@@ -1,14 +1,13 @@
 name: ti_printer_plugin
 description: "Plugin Flutter para imprimir y consultar estado en impresoras térmicas ESC/POS por USB, ideal para POS y self-checkout en Linux/Windows."
-version: 1.0.8
+version: 1.0.9
 homepage: https://github.com/jsalvini/ti_printer_plugin
 repository: https://github.com/jsalvini/ti_printer_plugin
 issue_tracker: https://github.com/jsalvini/ti_printer_plugin/issues
 
-
 environment:
   sdk: ^3.5.1
-  flutter: '>=3.3.0'
+  flutter: ">=3.3.0"
 
 dependencies:
   flutter:
@@ -21,7 +20,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 # The following section is specific to Flutter packages.
 flutter:

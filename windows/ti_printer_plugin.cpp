@@ -96,7 +96,7 @@ void TiPrinterPlugin::HandleMethodCall(
     }
   } else if (method_call.method_name().compare("closeSerialPort") == 0) {
     if (CloseSerialPort()) {
-      result->Success(flutter::EncodableValue("Puerto serial cerrado con éxito."));
+      result->Success(flutter::EncodableValue(true));
     } else {
       result->Error("ERROR", "No se pudo cerrar el puerto serial.");
     }
@@ -125,12 +125,8 @@ void TiPrinterPlugin::HandleMethodCall(
                 // Llamar a la función para ejecutar el comando y obtener el estado de la impresora
                 std::vector<uint8_t> status = ReadStatusSerial(*command);
 
-                if (!status.empty()) {
-                    // Retornar el estado de la impresora como una lista de bytes a Flutter
-                    result->Success(flutter::EncodableValue(std::vector<uint8_t>(status)));
-                } else {
-                    result->Error("ERROR", "No se pudo obtener el estado de la impresora.");
-                }
+                result->Success(
+                    flutter::EncodableValue(std::vector<uint8_t>(status)));
             } else {
                 result->Error("INVALID_ARGUMENT", "El comando no es válido ó no es un Uint8List.");
             }
@@ -172,6 +168,12 @@ void TiPrinterPlugin::HandleMethodCall(
       //std::cerr << "No se pudo abrir el puerto USB." << std::endl;
       result->Error("ERROR", "No se pudo abrir el puerto USB.");
     }
+  } else if (method_call.method_name().compare("closeUsbPort") == 0) {
+    if (CloseUsbPort()) {
+      result->Success(flutter::EncodableValue(true));
+    } else {
+      result->Error("ERROR", "No se pudo cerrar el puerto USB.");
+    }
   } else if (method_call.method_name().compare("sendCommandToUsb") == 0) {
      // Método para escribir en el puerto usb
     const auto *args = std::get_if<std::vector<uint8_t>>(method_call.arguments());
@@ -201,12 +203,8 @@ void TiPrinterPlugin::HandleMethodCall(
                 // Llamar a la función para ejecutar el comando y obtener el estado de la impresora
                 std::vector<uint8_t> status = ReadStatusUsb(*command);
 
-                if (!status.empty()) {
-                    // Retornar el estado de la impresora como una lista de bytes a Flutter
-                    result->Success(flutter::EncodableValue(std::vector<uint8_t>(status)));
-                } else {
-                    result->Error("ERROR", "No se pudo obtener el estado de la impresora.");
-                }
+                result->Success(
+                    flutter::EncodableValue(std::vector<uint8_t>(status)));
             } else {
                 result->Error("INVALID_ARGUMENT", "El comando no es válido ó no es un Uint8List.");
             }
@@ -505,10 +503,17 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
     return false;
 }
 
-void TiPrinterPlugin::CloseUsbPort() {
-    if (hUsb_ != INVALID_HANDLE_VALUE) {
-        CloseHandle(hUsb_);
+bool TiPrinterPlugin::CloseUsbPort() {
+    if (hUsb_ == INVALID_HANDLE_VALUE) {
+        return true;
     }
+
+    if (CloseHandle(hUsb_)) {
+        hUsb_ = INVALID_HANDLE_VALUE;
+        return true;
+    }
+
+    return false;
 }
 
 bool TiPrinterPlugin::SendCommandToUsb(std::vector<uint8_t> data) {

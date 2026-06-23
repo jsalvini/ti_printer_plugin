@@ -10,127 +10,92 @@ class MethodChannelTiPrinterPlugin extends TiPrinterPluginPlatform {
   final methodChannel = const MethodChannel('ti_printer_plugin');
 
   @override
-  Future<String?> getPlatformVersion() async {
+  Future<String> getPlatformVersion() async {
     final version =
         await methodChannel.invokeMethod<String>('getPlatformVersion');
-    return version;
+    return version ?? 'Unknown';
   }
 
   @override
-  Future<bool?> openSerialPort(String portName, int baudRate) async {
-    try {
-      final bool? result = await methodChannel.invokeMethod('openSerialPort', {
-        'portName': portName,
-        'baudRate': baudRate,
-      });
-      return result;
-    } on PlatformException {
-      //log("Error al abrir el puerto serial: ${e.message}");
-      return false;
-    }
+  Future<bool> openSerialPort(String portName, int baudRate) {
+    return _invokeBoolMethod('openSerialPort', {
+      'portName': portName,
+      'baudRate': baudRate,
+    });
   }
 
   @override
-  Future<bool?> closeSerialPort() async {
-    try {
-      final bool? result = await methodChannel.invokeMethod('closeSerialPort');
-      return result;
-    } on PlatformException {
-      //log("Error al cerrar el puerto serial: ${e.message}");
-      return false;
-    }
+  Future<bool> closeSerialPort() {
+    return _invokeBoolMethod('closeSerialPort');
   }
 
   @override
-  Future<bool?> sendCommandToSerial(Uint8List command) async {
-    try {
-      final bool result =
-          await methodChannel.invokeMethod('sendCommandToSerial', command);
-      //log('Result: $result');
-      return result;
-    } on PlatformException {
-      //log("Error: ${e.message}");
-      return false;
-    }
+  Future<bool> sendCommandToSerial(Uint8List command) {
+    return _invokeBoolMethod('sendCommandToSerial', command);
   }
 
   @override
-  Future<bool?> sendCommandToUsb(Uint8List command) async {
-    try {
-      final bool result =
-          await methodChannel.invokeMethod('sendCommandToUsb', command);
-      //log('Result: $result');
-      return result;
-    } on PlatformException {
-      //log("Error: ${e.message}");
-      return false;
-    }
+  Future<bool> sendCommandToUsb(Uint8List command) {
+    return _invokeBoolMethod('sendCommandToUsb', command);
   }
 
   @override
-  Future<Uint8List?> readStatusSerial(Uint8List command) async {
-    try {
-      Uint8List commandBytes = Uint8List.fromList(command);
-      final Uint8List? result = await methodChannel
-          .invokeMethod('readStatusSerial', {'command': commandBytes});
-      /*if (result != null) {
-        log('Estado de la impresora recibido: $result');
-      }*/
-      return result;
-    } catch (e) {
-      //log("Error al obtener el estado de la impresora: $e");
-      return null;
-    }
+  Future<Uint8List> readStatusSerial(Uint8List command) {
+    return _invokeBytesMethod('readStatusSerial', {
+      'command': Uint8List.fromList(command),
+    });
   }
 
   @override
   Future<List<String>> getUsbPrinters() async {
     try {
-      final List<dynamic> printerInstances =
-          await methodChannel.invokeMethod('getUsbPrinters');
-      return printerInstances.cast<String>();
+      final List<dynamic>? printerInstances =
+          await methodChannel.invokeMethod<List<dynamic>>('getUsbPrinters');
+      return printerInstances?.cast<String>() ?? const [];
     } on PlatformException {
-      //log("Error al abrir el puerto USB: ${e.message}");
-      return [];
+      return const [];
+    } on MissingPluginException {
+      return const [];
     }
   }
 
   @override
-  Future<bool?> openUsbPort(String deviceInstanceId) async {
+  Future<bool> openUsbPort(String deviceInstanceId) {
+    return _invokeBoolMethod('openUsbPort', {
+      'deviceInstanceId': deviceInstanceId,
+    });
+  }
+
+  @override
+  Future<bool> closeUsbPort() {
+    return _invokeBoolMethod('closeUsbPort');
+  }
+
+  @override
+  Future<Uint8List> readStatusUsb(Uint8List command) {
+    return _invokeBytesMethod('readStatusUsb', {
+      'command': Uint8List.fromList(command),
+    });
+  }
+
+  Future<bool> _invokeBoolMethod(String method, [dynamic arguments]) async {
     try {
-      final bool? result = await methodChannel
-          .invokeMethod('openUsbPort', {'deviceInstanceId': deviceInstanceId});
-      return result;
+      return await methodChannel.invokeMethod<bool>(method, arguments) ?? false;
     } on PlatformException {
-      //log("Error al abrir el puerto USB: ${e.message}");
+      return false;
+    } on MissingPluginException {
       return false;
     }
   }
 
-  @override
-  Future<bool?> closeUsbPort() async {
+  Future<Uint8List> _invokeBytesMethod(String method, [dynamic arguments]) async {
     try {
-      final bool? result = await methodChannel.invokeMethod('closeUsbPort');
-      return result;
+      return await methodChannel.invokeMethod<Uint8List>(method, arguments) ??
+          Uint8List(0);
     } on PlatformException {
-      //log("Error al cerrar el puerto USB: ${e.message}");
-      return false;
-    }
-  }
-
-  @override
-  Future<Uint8List?> readStatusUsb(Uint8List command) async {
-    try {
-      Uint8List commandBytes = Uint8List.fromList(command);
-      final Uint8List? result = await methodChannel
-          .invokeMethod('readStatusUsb', {'command': commandBytes});
-      if (result != null) {
-        //log('Estado de la impresora recibido: $result');
-      }
-      return result;
-    } catch (e) {
-      //log("Error al obtener el estado de la impresora: $e");
-      return null;
+      return Uint8List(0);
+    } on MissingPluginException {
+      return Uint8List(0);
     }
   }
 }

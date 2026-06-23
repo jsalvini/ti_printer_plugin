@@ -61,3 +61,7 @@
 - Dart `lib/esc_pos_utils_platform/src/qrcode.dart`
   - PLG-04: `pL` / `pH` con split de 16 bits para soportar payloads mayores a 252 bytes.
   - PLG-05: `utf8.encode` en lugar de `latin1.encode`.
+
+## 1.0.11
+
+- Update docuemntación

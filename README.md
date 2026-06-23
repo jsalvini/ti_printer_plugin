@@ -51,7 +51,8 @@ Incluye:
 - 🔌 Detección de impresoras USB (Windows y Linux).
 - 🖨️ Apertura y cierre de puerto USB.
 - 🧰 Soporte de puerto serial disponible actualmente solo en Windows.
-- 🧾 Envío de comandos ESC/POS “raw” a la impresora.
+- 🧾 Envío de comandos ESC/POS "raw" a la impresora.
+- ↔️ Las lecturas de estado USB/serial devuelven todos los bytes recibidos; no se truncan al primer byte.
 - 📡 Lectura de estado de impresora usando comandos **DLE EOT**:
   - `DLE EOT 1` – estado online.
   - `DLE EOT 4` – sensor de papel.
@@ -69,19 +70,22 @@ Incluye:
 
 - **Windows**:
   - Plugin nativo en C++ (archivos en `windows/`).
-  - Soporte para impresoras USB raw.
-  - Soporte para puertos seriales (`COMx`).
-  - Lectura de estado ESC/POS por USB y serial.
+  - `getUsbPrinters()` devuelve `DeviceInstanceId` de dispositivos filtrados por servicio `usbprint`.
+  - Soporte para impresoras USB raw y puertos seriales (`COMx`).
+  - USB abierto con `FILE_FLAG_OVERLAPPED` para lecturas con timeout y escrituras no bloqueantes.
+  - `SendCommandToUsb()` reintenta escrituras parciales hasta enviar todo el buffer o fallar.
+  - Lectura de estado ESC/POS por USB y serial, devolviendo todos los bytes recibidos.
 
 - **Linux**:
   - Plugin nativo en C++ (archivo principal: `linux/ti_printer_plugin.cc`).
-  - Soporte para impresoras USB/TTY detectadas como:
+  - `getUsbPrinters()` devuelve rutas de dispositivo candidatas, por ejemplo:
     - `/dev/usb/lp*`
     - `/dev/ttyUSB*`
     - `/dev/ttyACM*`
   - Escritura bloqueante a los dispositivos (`open` + `write` + `fsync`).
-  - Lectura de estados ESC/POS por USB con `select` + `read`.
-  - La API serial de Dart existe, pero actualmente responde como no soportada en Linux.
+  - Si `write` falla con `ENODEV`, `EIO` o `EBADF`, el descriptor se cierra y el plugin considera el dispositivo desconectado.
+  - Lectura de estados ESC/POS por USB con `select` + `read`, devolviendo todos los bytes recibidos.
+  - La API serial de Dart existe, pero actualmente en Linux responde `false` o `Uint8List` vacio segun el metodo.
 
 > **Nota:** Android, iOS y Web no están soportados por este plugin.
 
@@ -104,7 +108,7 @@ En `pubspec.yaml` de tu aplicación:
 ```yaml
 dependencies:
   # Si está publicado en pub.dev:
-  # ti_printer_plugin: ^2.0.1
+  # ti_printer_plugin: ^1.0.10
 
   # O como dependencia de Git:
   ti_printer_plugin:
@@ -166,13 +170,16 @@ La API expone métodos como:
 - `Future<bool> sendCommandToUsb(Uint8List data)`
 - `Future<Uint8List> readStatusUsb(Uint8List command)`
 - `Future<bool> openSerialPort(String port, int baudRate)`
+- `Future<bool> closeSerialPort()`
+- `Future<bool> sendCommandToSerial(Uint8List data)`
 - `Future<Uint8List> readStatusSerial(Uint8List command)`
 
 ### Contrato de respuestas
 
-- Los métodos booleanos (`openUsbPort`, `closeUsbPort`, `sendCommandToUsb`, `openSerialPort`, etc.) devuelven `true` en éxito y `false` en fallo o si la capacidad no está soportada en la plataforma actual.
-- Los métodos `readStatusUsb` y `readStatusSerial` devuelven un `Uint8List` con datos cuando la impresora responde.
-- Si no hay respuesta, ocurre un error nativo o la capacidad no está soportada, las lecturas de estado devuelven un `Uint8List` vacío.
+- `getUsbPrinters()` devuelve identificadores listos para reutilizar en `openUsbPort()`: `DeviceInstanceId` en Windows y rutas `/dev/...` en Linux.
+- Los métodos booleanos (`openUsbPort`, `closeUsbPort`, `sendCommandToUsb`, `openSerialPort`, `closeSerialPort`, `sendCommandToSerial`, etc.) devuelven `true` en éxito y `false` en fallo o si la capacidad no está soportada en la plataforma actual.
+- Los métodos `readStatusUsb` y `readStatusSerial` devuelven un `Uint8List` con todos los bytes recibidos cuando la impresora responde.
+- Si no hay respuesta antes del timeout, ocurre un error nativo o la capacidad no está soportada, las lecturas de estado devuelven un `Uint8List` vacío.
 
 #### Capa nativa Windows
 
@@ -201,7 +208,8 @@ Responsabilidades:
 
   - Apertura/cierre de puerto USB/serie.
   - Envío de bytes ESC/POS.
-  - Lectura de estado desde la impresora y conversión a bytes que se devuelven a Dart.
+  - Escritura USB overlapped con timeout y reintento en caso de escritura parcial.
+  - Lectura de estado desde la impresora y conversión a bytes completos que se devuelven a Dart.
 
 #### Capa nativa Linux
 
@@ -255,7 +263,7 @@ Responsabilidades principales de `ti_printer_plugin.cc`:
 
   - Envía el comando ESC/POS (por ejemplo DLE EOT n).
   - Espera hasta 500 ms con `select`.
-  - Si hay datos, devuelve el primer byte (igual que implementación en Windows).
+  - Si hay datos, devuelve todos los bytes leidos.
   - Si no hay respuesta o hay error, devuelve un `vector` vacío.
 
 - Integrarse con Flutter por medio de `FlMethodChannel`:
@@ -318,13 +326,35 @@ final version = await plugin.getPlatformVersion();
 
 // Listar impresoras USB disponibles
 final printers = await plugin.getUsbPrinters(); // List<String>
+// Windows: DeviceInstanceId, Linux: rutas /dev/...
 
-// Abrir un puerto USB (por ejemplo "/dev/usb/lp1" en Linux)
+// Abrir un puerto USB con el identificador devuelto por getUsbPrinters()
 final ok = await plugin.openUsbPort(printers.first);
 
 // Cerrar el puerto USB
 final closed = await plugin.closeUsbPort();
 ```
+
+### Conexión serial (solo Windows)
+
+```dart
+final plugin = TiPrinterPlugin();
+
+final opened = await plugin.openSerialPort('COM3', 9600);
+if (!opened) {
+  throw Exception('No se pudo abrir el puerto serial');
+}
+
+final sent = await plugin.sendCommandToSerial(Uint8List.fromList([0x1B, 0x40]));
+if (!sent) {
+  throw Exception('No se pudo enviar comando por serial');
+}
+
+await plugin.closeSerialPort();
+```
+
+> En Linux estos metodos existen en Dart para mantener el contrato cruzado,
+> pero hoy responden como capacidad no soportada.
 
 ### Lectura de estado ESC-POS
 
@@ -349,8 +379,10 @@ final cmdOffline = Uint8List.fromList(generator.offLineStatus());
 final rspOffline = await plugin.readStatusUsb(cmdOffline);
 
 if (rspOnline.isEmpty) {
-  // Sin respuesta, error nativo o capacidad no soportada.
+  // Sin respuesta dentro del timeout, error nativo o capacidad no soportada.
 }
+
+// Si la impresora devuelve mas de un byte, el plugin entrega la respuesta completa.
 ```
 
 Lo que hagas con esos bytes de respuesta (interpretar flags, actualizar UI, etc.) ya es responsabilidad de tu aplicación.  
@@ -610,15 +642,20 @@ ti_printer_plugin/
 
 - **Error al escribir en USB: `No existe el dispositivo`:**
   - La impresora se apagó / desconectó.
-  - El plugin cierra el descriptor de archivo y `readStatusUsb` empieza a devolver vacío.
+  - En Linux, si `write` falla con `ENODEV`, `EIO` o `EBADF`, el plugin cierra el descriptor y `readStatusUsb` empieza a devolver vacío.
   - El monitor de la app de ejemplo lo interpreta como offline y se detiene.
   - Para reconectar: encender impresora, `getUsbPrinters()`, `openUsbPort()`, reanudar tu lógica de monitoreo.
 
 - **Permisos en Linux:**
   - Ver sección [Permisos en Linux](#permisos-en-linux).
 
+- **Las lecturas de estado devuelven vacío pero la app no se cuelga:**
+  - Es el comportamiento esperado ante timeout, falta de respuesta o capacidad no soportada.
+  - En Windows, `ReadStatusUsb()` cancela la lectura pendiente tras ~500 ms para evitar bloqueos indefinidos.
+  - En Linux, `select()` espera hasta 500 ms y luego devuelve vacío si no hubo respuesta.
+
 - **No se ven logs nativos en la app:**
-  - Los logs nativos (`g_printerr`, `printf`) se ven en la consola donde lanzás `flutter run`.
+  - Los logs nativos (`g_printerr`, `printf`, `OutputDebugStringA`) se ven en la consola o debugger donde lanzás `flutter run`.
   - La consola de la app de ejemplo (UI) muestra solo los logs que se agregan desde Dart.
 
 ---

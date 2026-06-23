@@ -214,8 +214,10 @@ static std::vector<uint8_t> read_status_usb(TiPrinterPlugin *self,
     ssize_t n = read(self->usb_fd, buffer, sizeof(buffer));
     if (n > 0)
     {
-      // Igual que en Windows: devolver solo el primer byte de estado.
-      result.push_back(buffer[0]);
+      // FIX #6: Devolver TODOS los bytes leídos. La versión anterior
+      // hacía result.push_back(buffer[0]) y descartaba el resto, lo cual
+      // truncaba respuestas multi-byte (ESC u, auto status back, etc.).
+      result.assign(buffer, buffer + n);
     }
   }
 

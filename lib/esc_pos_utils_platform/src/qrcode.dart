@@ -4,9 +4,16 @@
  *
  * Copyright (c) 2019-2020. All rights reserved.
  * See LICENSE for distribution and usage details.
+ *
+ * PATCHED:
+ *   - FIX #4: codificación pL/pH correcta para payloads > 252 bytes.
+ *   - FIX #5: utf8.encode en lugar de latin1.encode (QR carga binario; URLs
+ *     con caracteres fuera de Latin-1 ya no tiran ArgumentError, y los
+ *     lectores móviles decodifican UTF-8 por estándar).
  */
 
 import 'dart:convert';
+
 import 'commands.dart';
 
 class QRSize {
@@ -54,10 +61,20 @@ class QRCode {
     bytes += cQrHeader.codeUnits + [0x03, 0x00, 0x31, 0x45] + [level.value];
 
     // FN 180. QR Code: Store the data in the symbol storage area
-    List<int> textBytes = latin1.encode(text);
+    // FIX #5: utf8.encode soporta cualquier carácter (URLs con tilde, emoji,
+    // etc.). La versión anterior usaba latin1.encode y tiraba ArgumentError
+    // ante cualquier carácter fuera de 0x00-0xFF.
+    final List<int> textBytes = utf8.encode(text);
+
+    // FIX #4: pL = (len + 3) & 0xFF, pH = ((len + 3) >> 8) & 0xFF.
+    // La versión anterior hardcodeaba pH = 0x00 y ponía textBytes.length + 3
+    // en pL → overflow silencioso para payloads > 252 bytes (URLs largas de
+    // ARCA, links con muchos parámetros, etc.).
+    final int storeLen = textBytes.length + 3;
+    final int storePL = storeLen & 0xFF;
+    final int storePH = (storeLen >> 8) & 0xFF;
     // pL pH cn fn m
-    bytes +=
-        cQrHeader.codeUnits + [textBytes.length + 3, 0x00, 0x31, 0x50, 0x30];
+    bytes += cQrHeader.codeUnits + [storePL, storePH, 0x31, 0x50, 0x30];
     bytes += textBytes;
 
     // FN 182. QR Code: Transmit the size information of the symbol data in the symbol storage area

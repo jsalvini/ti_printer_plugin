@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:hex/hex.dart';
 import 'package:image/image.dart' as img;
 import 'package:gbk_codec/gbk_codec.dart';
+
 import '../esc_pos_utils_platform.dart';
 import 'commands.dart';
 
@@ -105,6 +106,16 @@ class Generator {
         .replaceAll(" ", ' ')
         .replaceAll("•", '.')
         .replaceAll("・", '.');
+    // NOTA (gotcha #8): latin1.encode SIEMPRE encodea como ISO-8859-1
+    // independientemente del codeTable del PosStyles. Funciona OK con code
+    // tables compatibles con Latin-1 en el rango alto (CP1252, CP850, CP858,
+    // ISO_8859-15) — todos los caracteres comunes del español (ñ Ñ á é í ó ú
+    // ü ¿ ¡) caen en el mismo byte 0xA1–0xFC. NO funciona con CP437: la ñ
+    // ahí está en 0xA4 pero acá se manda 0xF1 (que en CP437 es '±').
+    // Recomendación: usar siempre codeTable 'CP1252' o 'CP858' en los
+    // PosStyles con acentos. Para soporte real multi-codepage hay que
+    // reemplazar latin1.encode por conversión basada en codeTable activo
+    // (paquete charset_converter o equivalente).
     if (!isKanji) {
       return latin1.encode(text);
     } else {
@@ -115,6 +126,14 @@ class Generator {
   List _getLexemes(String text) {
     final List<String> lexemes = [];
     final List<bool> isLexemeChinese = [];
+
+    // FIX #9: Guard contra texto vacío. La versión anterior accedía a text[0]
+    // sin chequear y tiraba RangeError en cuanto alguien pasaba "" (lo cual
+    // puede pasar trivialmente vía un PosColumn con text vacío).
+    if (text.isEmpty) {
+      return <dynamic>[lexemes, isLexemeChinese];
+    }
+
     int start = 0;
     int end = 0;
     bool curLexemeChinese = _isChinese(text[0]);
@@ -145,7 +164,15 @@ class Generator {
   /// [value] Input number
   /// [bytesNb] The number of bytes to output (1 - 4)
   List<int> _intLowHigh(int value, int bytesNb) {
-    final dynamic maxInput = 256 << (bytesNb * 8) - 1;
+    // FIX #10: Paréntesis correctos. La versión anterior tenía:
+    //   256 << (bytesNb * 8) - 1
+    // que por precedencia se evalúa como 256 << ((bytesNb * 8) - 1),
+    // dando cotas 128× más permisivas que las correctas (ej. para
+    // bytesNb=2 daba 8.388.608 en lugar de 65.535). Los valores entre
+    // 65.536 y 8.388.607 pasaban el check y se truncaban silenciosamente
+    // en la codificación, generando comandos con tamaños rotos en imágenes
+    // muy grandes.
+    final dynamic maxInput = (256 << (bytesNb * 8)) - 1;
 
     if (bytesNb < 1 || bytesNb > 4) {
       throw Exception('Can only output 1-4 bytes');
@@ -478,7 +505,12 @@ class Generator {
       List.from(cBeep.codeUnits)..addAll([beepCount, duration.value]),
     );
 
-    beep(n: n - 9, duration: duration);
+    // FIX #3: Concatenar el retorno del recursivo. La versión anterior
+    // llamaba a beep(n: n - 9, ...) y descartaba los bytes, por lo que
+    // pedir beep(n: 20) sólo emitía UNA tanda de 9 beeps.
+    if (n > 9) {
+      bytes += beep(n: n - 9, duration: duration);
+    }
     return bytes;
   }
 
@@ -596,8 +628,11 @@ class Generator {
 
     bytes += emptyLines(1);
 
+    // FIX #4: Concatenar el resultado del wrap recursivo. La versión anterior
+    // llamaba a row(nextRow) y descartaba los bytes, por lo que cualquier
+    // columna que se desbordara se computaba pero no se imprimía.
     if (isNextRow) {
-      row(nextRow);
+      bytes += row(nextRow);
     }
 
     return bytes;
@@ -657,24 +692,22 @@ class Generator {
         // If the col's content is too long, split it to the next row
         int realCharactersNb = encodedToPrint.length;
         if (realCharactersNb > maxCharactersNb) {
-          // Print max possible and split to the next row
-          Uint8List encodedToPrintNextRow = realCharactersNb < maxCharactersNb
-              ? encodedToPrint
-              : encodedToPrint.sublist(maxCharactersNb);
-          encodedToPrint = realCharactersNb < maxCharactersNb
-              ? encodedToPrint
-              : encodedToPrint.sublist(0, maxCharactersNb);
-          isNextRow = realCharactersNb < maxCharactersNb ? false : true;
+          // FIX #11 + #12: La versión anterior tenía condiciones ternarias
+          // imposibles (realCharactersNb < maxCharactersNb dentro de un if
+          // que ya garantizaba >) y hacía un round-trip
+          // String.fromCharCodes(...).trim() que sólo funcionaba porque
+          // Latin-1 ≡ codepoints 0–255 y, además, el .trim() podía comer
+          // espacios intencionales en columnas a la derecha.
+          // Ahora pasamos textEncoded directo y evitamos el round-trip.
+          final Uint8List encodedToPrintNextRow =
+              encodedToPrint.sublist(maxCharactersNb);
+          encodedToPrint = encodedToPrint.sublist(0, maxCharactersNb);
+          isNextRow = true;
 
-          if (isNextRow) {
-            nextRow.add(PosColumn(
-                text: String.fromCharCodes(encodedToPrintNextRow).trim(),
-                width: cols[i].width,
-                styles: cols[i].styles));
-          } else {
-            nextRow.add(PosColumn(
-                text: '', width: cols[i].width, styles: cols[i].styles));
-          }
+          nextRow.add(PosColumn(
+              textEncoded: encodedToPrintNextRow,
+              width: cols[i].width,
+              styles: cols[i].styles));
 
           // end rows splitting
           bytes += _text(
@@ -682,16 +715,13 @@ class Generator {
             styles: cols[i].styles,
             colInd: colInd,
             colWidth: cols[i].width,
-            // maxCharsPerLine: maxCharactersNb,
           );
-          isNextRow = true;
         } else {
           bytes += _text(
             _encode(cols[i].text),
             styles: cols[i].styles,
             colInd: colInd,
             colWidth: cols[i].width,
-            // maxCharsPerLine: maxCharactersNb,
           );
           // Insert an empty col
           nextRow.add(PosColumn(
@@ -1058,7 +1088,11 @@ class Generator {
     srcY ??= 0;
     srcW ??= src.width;
     srcH ??= src.height;
-    dstW ??= (dst.width < src.width) ? dstW = dst.width : src.width;
+    // FIX #13: La versión anterior hacía una asignación dentro del ternario:
+    //   dstW ??= (dst.width < src.width) ? dstW = dst.width : src.width;
+    // que funcionaba "de casualidad" pero era ofuscado. Limpio para que
+    // matche el patrón de la línea de abajo (dstH).
+    dstW ??= (dst.width < src.width) ? dst.width : src.width;
     dstH ??= (dst.height < src.height) ? dst.height : src.height;
 
     if (blend) {

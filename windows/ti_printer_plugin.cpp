@@ -120,41 +120,31 @@ void TiPrinterPlugin::HandleMethodCall(
       result->Error("INVALID_ARGUMENT", "Expected a list of bytes.");
     }
   } else if (method_call.method_name().compare("readStatusSerial") == 0) {
-    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
-    if (arguments) {
-        auto it = arguments->find(flutter::EncodableValue("command"));
-        if (it != arguments->end()) {
-            // Obtener el comando como un vector de bytes (Uint8List en Flutter)
-            const auto* command = std::get_if<std::vector<uint8_t>>(&(it->second));
-
-            if (command) {
-                // Llamar a la función para ejecutar el comando y obtener el estado de la impresora
-                std::vector<uint8_t> status = ReadStatusSerial(*command);
-
-                result->Success(
-                    flutter::EncodableValue(std::vector<uint8_t>(status)));
-            } else {
-                result->Error("INVALID_ARGUMENT", "El comando no es válido ó no es un Uint8List.");
-            }
-        } else {
-            result->Error("INVALID_ARGUMENT", "Comando no proporcionado.");
-        }
+    const auto* command = std::get_if<std::vector<uint8_t>>(method_call.arguments());
+    if (command) {
+        std::vector<uint8_t> status = ReadStatusSerial(*command);
+        result->Success(
+            flutter::EncodableValue(std::vector<uint8_t>(status)));
     } else {
-        result->Error("INVALID_ARGUMENT", "Argumentos inválidos.");
+        result->Error("INVALID_ARGUMENT", "Expected a list of bytes.");
     }
   } else if (method_call.method_name().compare("getUsbPrinters") == 0) {
-        // Llama a la función ListUsbInstance para obtener las instancias de impresoras USB
-        std::vector<std::wstring> printerInstances = ListUsbInstance();
+        auto printerInstances = ListUsbInstance();
 
-        // Prepara una lista para enviar de vuelta a Flutter
         flutter::EncodableList instanceList;
-        for (const auto& instanceId : printerInstances) {
-          // instanceList.push_back(flutter::EncodableValue(std::wstring_convert<std::codecvt_utf8<wchar_t>>().to_bytes(instanceId)));
-          // Usar la función convertWStringToString en lugar de wstring_convert
-          instanceList.push_back(flutter::EncodableValue(convertWStringToString(instanceId)));
+        for (const auto& printer : printerInstances) {
+          flutter::EncodableMap map;
+          map[flutter::EncodableValue("instanceId")] =
+              flutter::EncodableValue(convertWStringToString(printer.instanceId));
+          map[flutter::EncodableValue("displayName")] =
+              flutter::EncodableValue(convertWStringToString(printer.displayName));
+          map[flutter::EncodableValue("vid")] =
+              flutter::EncodableValue(printer.vid);
+          map[flutter::EncodableValue("pid")] =
+              flutter::EncodableValue(printer.pid);
+          instanceList.push_back(flutter::EncodableValue(map));
         }
 
-        // Envía la lista de impresoras de vuelta al resultado
         result->Success(flutter::EncodableValue(instanceList));
   } else  if (method_call.method_name().compare("openUsbPort") == 0) {
     const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
@@ -197,28 +187,13 @@ void TiPrinterPlugin::HandleMethodCall(
   } else if (method_call.method_name().compare("readFromUsb") == 0) {
     // Llama a la función leer datos de la impresora
   } else if (method_call.method_name().compare("readStatusUsb") == 0) {
-    // Llama a la función que obtiene el estado de la impresora
-    const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
-    if (arguments) {
-        auto it = arguments->find(flutter::EncodableValue("command"));
-        if (it != arguments->end()) {
-            // Obtener el comando como un vector de bytes (Uint8List en Flutter)
-            const auto* command = std::get_if<std::vector<uint8_t>>(&(it->second));
-
-            if (command) {
-                // Llamar a la función para ejecutar el comando y obtener el estado de la impresora
-                std::vector<uint8_t> status = ReadStatusUsb(*command);
-
-                result->Success(
-                    flutter::EncodableValue(std::vector<uint8_t>(status)));
-            } else {
-                result->Error("INVALID_ARGUMENT", "El comando no es válido ó no es un Uint8List.");
-            }
-        } else {
-            result->Error("INVALID_ARGUMENT", "Comando no proporcionado.");
-        }
+    const auto* command = std::get_if<std::vector<uint8_t>>(method_call.arguments());
+    if (command) {
+        std::vector<uint8_t> status = ReadStatusUsb(*command);
+        result->Success(
+            flutter::EncodableValue(std::vector<uint8_t>(status)));
     } else {
-        result->Error("INVALID_ARGUMENT", "Argumentos inválidos.");
+        result->Error("INVALID_ARGUMENT", "Expected a list of bytes.");
     }
   } else {
     result->NotImplemented();
@@ -636,85 +611,144 @@ void TiPrinterPlugin::GetUsbDevicesInstanceId() {
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
 }
 
-std::vector<std::wstring> TiPrinterPlugin::ListUsbInstance() {
-    std::vector<std::wstring> usbPrinterInstances;
+std::vector<PrinterDeviceInfo> TiPrinterPlugin::ListUsbInstance() {
+    std::vector<PrinterDeviceInfo> usbPrinterInstances;
 
-    // Obtén una lista de dispositivos que coincidan con la clase de impresoras USB
+    // Lambdas inline (antes eran static helpers fuera de la clase)
+    auto parseHexFromInstanceId = [](const std::wstring& instanceId, const std::wstring& prefix) -> int {
+        auto pos = instanceId.find(prefix);
+        if (pos == std::wstring::npos) return 0;
+        pos += prefix.length();
+        if (pos + 4 > instanceId.length()) return 0;
+        std::wstring hexStr = instanceId.substr(pos, 4);
+        return std::wcstol(hexStr.c_str(), nullptr, 16);
+    };
+
+    auto getDisplayName = [](HDEVINFO devSet, PSP_DEVINFO_DATA devInfoData) -> std::wstring {
+        WCHAR friendlyName[256];
+        if (SetupDiGetDeviceRegistryProperty(
+                devSet, devInfoData, SPDRP_FRIENDLYNAME,
+                NULL, (PBYTE)friendlyName, sizeof(friendlyName), NULL)) {
+            return friendlyName;
+        }
+        WCHAR devDesc[256];
+        if (SetupDiGetDeviceRegistryProperty(
+                devSet, devInfoData, SPDRP_DEVICEDESC,
+                NULL, (PBYTE)devDesc, sizeof(devDesc), NULL)) {
+            return devDesc;
+        }
+        return L"Unknown Printer";
+    };
+
+    // 1ra pasada: dispositivos USB con servicio "usbprint"
     HDEVINFO deviceInfoSet = SetupDiGetClassDevs(
-        &GUID_DEVINTERFACE_USB_DEVICE, // Interfaz para dispositivos USB
-        NULL,                          // Sin enumerador
-        NULL,                          // Sin ventana
+        &GUID_DEVINTERFACE_USB_DEVICE,
+        NULL,
+        NULL,
         DIGCF_PRESENT | DIGCF_DEVICEINTERFACE
     );
 
     if (deviceInfoSet == INVALID_HANDLE_VALUE) {
-        return usbPrinterInstances;  // No se pudo obtener el conjunto de dispositivos
-    }
+        DWORD err = GetLastError();
+        OutputDebugStringA(("ListUsbInstance: SetupDiGetClassDevs(USB_DEVICE) failed, error=" + std::to_string(err) + "\n").c_str());
+    } else {
+        SP_DEVICE_INTERFACE_DATA deviceInterfaceData;
+        deviceInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+        DWORD deviceIndex = 0;
 
-    SP_DEVICE_INTERFACE_DATA deviceInterfaceData;
-    deviceInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+        while (SetupDiEnumDeviceInterfaces(
+            deviceInfoSet, NULL, &GUID_DEVINTERFACE_USB_DEVICE,
+            deviceIndex, &deviceInterfaceData)) {
 
-    DWORD deviceIndex = 0;
+            DWORD requiredSize = 0;
+            SetupDiGetDeviceInterfaceDetail(deviceInfoSet, &deviceInterfaceData, NULL, 0, &requiredSize, NULL);
 
-    while (SetupDiEnumDeviceInterfaces(
-        deviceInfoSet,
-        NULL,
-        &GUID_DEVINTERFACE_USB_DEVICE,
-        deviceIndex,
-        &deviceInterfaceData)) {
+            std::vector<BYTE> buffer(requiredSize);
+            auto* detailData = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA*>(buffer.data());
+            detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
 
-        // Obtener detalles de la interfaz del dispositivo
-        DWORD requiredSize = 0;
-        SetupDiGetDeviceInterfaceDetail(
-            deviceInfoSet,
-            &deviceInterfaceData,
-            NULL,
-            0,
-            &requiredSize,
-            NULL
-        );
+            SP_DEVINFO_DATA devInfoData;
+            devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
 
-        std::vector<BYTE> deviceInterfaceDetailDataBuffer(requiredSize);
-        SP_DEVICE_INTERFACE_DETAIL_DATA* deviceInterfaceDetailData = reinterpret_cast<SP_DEVICE_INTERFACE_DETAIL_DATA*>(deviceInterfaceDetailDataBuffer.data());
-        deviceInterfaceDetailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+            if (SetupDiGetDeviceInterfaceDetail(deviceInfoSet, &deviceInterfaceData,
+                    detailData, requiredSize, &requiredSize, &devInfoData)) {
 
-        SP_DEVINFO_DATA deviceInfoData;
-        deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
-
-        if (SetupDiGetDeviceInterfaceDetail(
-            deviceInfoSet,
-            &deviceInterfaceData,
-            deviceInterfaceDetailData,
-            requiredSize,
-            &requiredSize,
-            &deviceInfoData)) {
-
-            WCHAR deviceInstanceId[MAX_DEVICE_ID_LEN];
-            if (CM_Get_Device_ID(deviceInfoData.DevInst, deviceInstanceId, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS) {
-                // Ahora obtenemos la propiedad "Service" para verificar si es una impresora
                 WCHAR service[256];
-                if (SetupDiGetDeviceRegistryProperty(
-                    deviceInfoSet,
-                    &deviceInfoData,
-                    SPDRP_SERVICE,
-                    NULL,
-                    (PBYTE)service,
-                    sizeof(service),
-                    NULL)) {
-
-                    // Verifica si el servicio es "usbprint"
+                if (SetupDiGetDeviceRegistryProperty(deviceInfoSet, &devInfoData,
+                        SPDRP_SERVICE, NULL, (PBYTE)service, sizeof(service), NULL)) {
                     if (wcscmp(service, L"usbprint") == 0) {
-                        // Añadir el DeviceInstanceId a la lista
-                        usbPrinterInstances.push_back(deviceInstanceId);
+                        PrinterDeviceInfo info = {};
+                        info.vid = 0;
+                        info.pid = 0;
+
+                        WCHAR instanceId[MAX_DEVICE_ID_LEN];
+                        if (CM_Get_Device_ID(devInfoData.DevInst, instanceId, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS) {
+                            info.instanceId = instanceId;
+                            info.displayName = getDisplayName(deviceInfoSet, &devInfoData);
+                            info.vid = parseHexFromInstanceId(instanceId, L"VID_");
+                            info.pid = parseHexFromInstanceId(instanceId, L"PID_");
+                            if (!info.instanceId.empty()) {
+                                usbPrinterInstances.push_back(info);
+                            }
+                        }
                     }
                 }
             }
+            deviceIndex++;
         }
-
-        deviceIndex++;
+        SetupDiDestroyDeviceInfoList(deviceInfoSet);
     }
 
-    SetupDiDestroyDeviceInfoList(deviceInfoSet);
+    // 2da pasada: dispositivos de clase "Printer" (drivers propietarios)
+    HDEVINFO printerClassSet = SetupDiGetClassDevs(
+        &GUID_DEVCLASS_PRINTER, NULL, NULL, DIGCF_PRESENT);
+
+    if (printerClassSet == INVALID_HANDLE_VALUE) {
+        DWORD err = GetLastError();
+        OutputDebugStringA(("ListUsbInstance: SetupDiGetClassDevs(Printer) failed, error=" + std::to_string(err) + "\n").c_str());
+    } else {
+        SP_DEVINFO_DATA devInfo;
+        devInfo.cbSize = sizeof(SP_DEVINFO_DATA);
+        DWORD idx = 0;
+
+        while (SetupDiEnumDeviceInfo(printerClassSet, idx, &devInfo)) {
+            PrinterDeviceInfo info = {};
+            info.vid = 0;
+            info.pid = 0;
+
+            WCHAR instanceId[MAX_DEVICE_ID_LEN];
+            if (CM_Get_Device_ID(devInfo.DevInst, instanceId, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS) {
+                info.instanceId = instanceId;
+                info.displayName = getDisplayName(printerClassSet, &devInfo);
+                info.vid = parseHexFromInstanceId(instanceId, L"VID_");
+                info.pid = parseHexFromInstanceId(instanceId, L"PID_");
+
+                if (!info.instanceId.empty()) {
+                    bool alreadyFound = false;
+                    for (const auto& existing : usbPrinterInstances) {
+                        if (existing.instanceId == info.instanceId) {
+                            alreadyFound = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyFound) {
+                        usbPrinterInstances.push_back(info);
+                    }
+                }
+            }
+            idx++;
+        }
+        SetupDiDestroyDeviceInfoList(printerClassSet);
+    }
+
+    OutputDebugStringA(("ListUsbInstance: found " + std::to_string(usbPrinterInstances.size()) + " printers\n").c_str());
+    for (size_t i = 0; i < usbPrinterInstances.size(); i++) {
+        const auto& p = usbPrinterInstances[i];
+        std::string displayName = convertWStringToString(p.displayName);
+        std::string instanceId = convertWStringToString(p.instanceId);
+        OutputDebugStringA(("  [" + std::to_string(i) + "] " + displayName + " | " + instanceId + " VID=0x" + std::to_string(p.vid) + " PID=0x" + std::to_string(p.pid) + "\n").c_str());
+    }
+
     return usbPrinterInstances;
 }
 

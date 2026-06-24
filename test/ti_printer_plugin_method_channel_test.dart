@@ -51,9 +51,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (MethodCall methodCall) async {
       expect(methodCall.method, 'readStatusUsb');
-      expect(methodCall.arguments, <String, dynamic>{
-        'command': Uint8List.fromList(<int>[0x10, 0x04, 0x01]),
-      });
+      expect(methodCall.arguments, Uint8List.fromList(<int>[0x10, 0x04, 0x01]));
       return expected;
     });
 

@@ -8,11 +8,12 @@ Plugin de Flutter para impresión en **impresoras térmicas ESC/POS** por **USB*
 Incluye:
 
 - Capa nativa en C/C++ (Windows y Linux) usando **MethodChannel**.
-- Librería ESC/POS integrada (`esc_pos_utils_platform`) para generar tickets.
 - Una **aplicación de ejemplo** en la carpeta `example/` que muestra cómo consumir el plugin:
   - Monitor de estado en tiempo real (online/offline, papel, tapa).
   - Construcción de ticket con logo, encabezado, detalle, totales y código QR.
+  - Generación de imágenes ESC/POS mediante bitmap 1-bit manual.
   - Consola de logs en UI.
+- La app de ejemplo incluye su propia copia de la librería ESC/POS (`esc_pos_utils_platform` dentro de `example/lib/`) para generar comandos de ticket.
 
 > ⚠️ Importante:  
 > Todo lo que está dentro de la carpeta `example/` **no forma parte del plugin** publicado.  
@@ -48,7 +49,9 @@ Incluye:
 
 ## Características
 
-- 🔌 Detección de impresoras USB (Windows y Linux).
+- 🔌 Detección de impresoras USB (Windows y Linux) con información de VID, PID y nombre descriptivo.
+- 📋 `PrinterDeviceInfo` expone `instanceId`, `displayName`, `vid`, `pid` para que puedas identificar y seleccionar impresoras específicas.
+- 🏷️ `resolvedDisplayName` asigna nombres legibles según VID/PID usando una base de datos de +30 modelos conocidos (Epson, Star, Bixolon, Zebra, genéricas POS58, etc.).
 - 🖨️ Apertura y cierre de puerto USB.
 - 🧰 Soporte de puerto serial disponible actualmente solo en Windows.
 - 🧾 Envío de comandos ESC/POS "raw" a la impresora.
@@ -70,7 +73,8 @@ Incluye:
 
 - **Windows**:
   - Plugin nativo en C++ (archivos en `windows/`).
-  - `getUsbPrinters()` devuelve `DeviceInstanceId` de dispositivos filtrados por servicio `usbprint`.
+  - `getUsbPrinters()` devuelve `List<PrinterDeviceInfo>` con `instanceId`, `displayName`, `vid` y `pid`.
+  - Dos pasadas de enumeración: primera por servicio `usbprint` (drivers genéricos), segunda por `GUID_DEVCLASS_PRINTER` (drivers propietarios Epson, Star, Bixolon, etc.).
   - Soporte para impresoras USB raw y puertos seriales (`COMx`).
   - USB abierto con `FILE_FLAG_OVERLAPPED` para lecturas con timeout y escrituras no bloqueantes.
   - `SendCommandToUsb()` reintenta escrituras parciales hasta enviar todo el buffer o fallar.
@@ -164,7 +168,7 @@ Dentro de `lib/` (raíz del plugin):
 La API expone métodos como:
 
 - `Future<String> getPlatformVersion()`
-- `Future<List<String>> getUsbPrinters()`
+- `Future<List<PrinterDeviceInfo>> getUsbPrinters()`
 - `Future<bool> openUsbPort(String deviceInstanceId)`
 - `Future<bool> closeUsbPort()`
 - `Future<bool> sendCommandToUsb(Uint8List data)`
@@ -174,9 +178,59 @@ La API expone métodos como:
 - `Future<bool> sendCommandToSerial(Uint8List data)`
 - `Future<Uint8List> readStatusSerial(Uint8List command)`
 
+> Los métodos `readStatusUsb` y `readStatusSerial` aceptan `Uint8List` directamente como argumento (no un `Map`), coincidiendo con el resto de la API de envío de comandos.
+
+### Modelo `PrinterDeviceInfo`
+
+```dart
+class PrinterDeviceInfo {
+  final String instanceId;   // Identificador único del dispositivo
+  final String displayName;  // Nombre original desde el sistema operativo
+  final int vid;             // Vendor ID (0 si no disponible, ej. Linux)
+  final int pid;             // Product ID (0 si no disponible, ej. Linux)
+
+  // Nombre legible: busca (vid,pid) en la base de datos de impresoras
+  // conocidas; si no encuentra, genera "USB Printer (VID:0xPPPP, PID:0xPPPP)".
+  String get resolvedDisplayName;
+}
+```
+
+### Base de datos de impresoras (`database_printer.dart`)
+
+El plugin incluye una base de datos de +30 modelos de impresoras térmicas con su VID/PID:
+
+| Marca | Modelos |
+|---|---|
+| **Epson** | TM-T88, TM-T70, TM-T20, TM-m30, y USB Controller genérico |
+| **Star** | TSP100ECO, TSP100II |
+| **Bixolon** | SRP-350II |
+| **Citizen** | CT-E351, PPU-700 |
+| **Zebra** | LP2844, GK420d, GK420t, GX420d, ZP 450, GC420d, ZD500, ZD410, ZD620, ZT411 |
+| **TSC** | TTP-245C |
+| **DYMO** | LabelWriter 450, 550 |
+| **Genéricas** | POS58 / Zjiang / GD32, HaoYin CX588, POS58/POS80 chinas, Gprinter |
+| **Rongta** | RP Series |
+
+Para agregar nuevas impresoras:
+
+```dart
+import 'package:ti_printer_plugin/ti_printer_plugin.dart';
+
+knownThermalUsbPrinters.add(
+  KnownUsbPrinter(
+    vid: 0xXXXX,
+    pid: 0xYYYY,
+    displayName: 'Mi Modelo',
+    protocol: 'escpos',
+  ),
+);
+```
+
+O usar `lookupPrinterInfo(vid, pid)` para búsqueda programática.
+
 ### Contrato de respuestas
 
-- `getUsbPrinters()` devuelve identificadores listos para reutilizar en `openUsbPort()`: `DeviceInstanceId` en Windows y rutas `/dev/...` en Linux.
+- `getUsbPrinters()` devuelve `List<PrinterDeviceInfo>` con `instanceId` listo para reutilizar en `openUsbPort()` (`DeviceInstanceId` en Windows, rutas `/dev/...` en Linux), más `displayName` (original de Windows), `vid` y `pid`. Usar `resolvedDisplayName` para obtener un nombre legible según base de datos de VID/PID conocidos.
 - Los métodos booleanos (`openUsbPort`, `closeUsbPort`, `sendCommandToUsb`, `openSerialPort`, `closeSerialPort`, `sendCommandToSerial`, etc.) devuelven `true` en éxito y `false` en fallo o si la capacidad no está soportada en la plataforma actual.
 - Los métodos `readStatusUsb` y `readStatusSerial` devuelven un `Uint8List` con todos los bytes recibidos cuando la impresora responde.
 - Si no hay respuesta antes del timeout, ocurre un error nativo o la capacidad no está soportada, las lecturas de estado devuelven un `Uint8List` vacío.
@@ -325,11 +379,19 @@ final plugin = TiPrinterPlugin();
 final version = await plugin.getPlatformVersion();
 
 // Listar impresoras USB disponibles
-final printers = await plugin.getUsbPrinters(); // List<String>
-// Windows: DeviceInstanceId, Linux: rutas /dev/...
+final printers = await plugin.getUsbPrinters(); // List<PrinterDeviceInfo>
+// Cada elemento tiene:
+//   .instanceId  → DeviceInstanceId (Windows) o ruta /dev/... (Linux)
+//   .displayName → nombre original desde Windows
+//   .vid         → Vendor ID (0 si no disponible)
+//   .pid         → Product ID (0 si no disponible)
 
-// Abrir un puerto USB con el identificador devuelto por getUsbPrinters()
-final ok = await plugin.openUsbPort(printers.first);
+// Nombre legible según base de datos de VID/PID conocidos
+print(printers.first.resolvedDisplayName);
+// Ejemplo: "EPSON TM-T20", "POS58 / Zjiang / GD32 USB Printer"
+
+// Abrir un puerto USB con el .instanceId
+final ok = await plugin.openUsbPort(printers.first.instanceId);
 
 // Cerrar el puerto USB
 final closed = await plugin.closeUsbPort();
@@ -496,14 +558,14 @@ class _MyPrinterScreenState extends State<MyPrinterScreen> {
           body: Column(
             children: [
               // Dropdown de impresoras
-              DropdownButton<String>(
+              DropdownButton<PrinterDeviceInfo>(
                 value: state.selectedUsbPrinter,
                 hint: const Text('Seleccione impresora USB'),
                 items: state.usbPrinters
                     .map(
                       (p) => DropdownMenuItem(
                         value: p,
-                        child: Text(p),
+                        child: Text(p.resolvedDisplayName),
                       ),
                     )
                     .toList(),
@@ -602,30 +664,43 @@ ti_printer_plugin/
 ├── lib/
 │   ├── ti_printer_plugin.dart
 │   ├── ti_printer_plugin_method_channel.dart
-│   └── ti_printer_plugin_platform_interface.dart
+│   ├── ti_printer_plugin_platform_interface.dart
+│   ├── printer_device_info.dart          # Modelo PrinterDeviceInfo
+│   └── database_printer.dart             # Mapeo VID/PID → nombre conocido
 ├── linux/
 │   ├── CMakeLists.txt
-│   ├── include/
-│   │   └── ti_printer_plugin/
-│   │       └── ti_printer_plugin.h
 │   ├── ti_printer_plugin.cc
-│   └── ti_printer_plugin_private.h
+│   ├── ti_printer_plugin_private.h
+│   └── include/
+│       └── ti_printer_plugin/
+│           └── ti_printer_plugin.h
 ├── windows/
 │   ├── CMakeLists.txt
 │   ├── ti_printer_plugin.cpp
+│   ├── ti_printer_plugin.h
 │   ├── ti_printer_plugin_c_api.cpp
-│   └── ti_printer_plugin.h
+│   └── test/
+│       └── ti_printer_plugin_test.cpp
 └── example/
     ├── lib/
+    │   ├── main.dart
+    │   ├── esc_pos_utils_platform/   # Copia local de la librería ESC/POS
     │   ├── logic/
     │   │   ├── printer_controller.dart
     │   │   └── ticket_builder.dart
     │   ├── models/
+    │   │   ├── printer_log_entry.dart
     │   │   └── printer_state.dart
-    │   ├── uils/
-    │   │   ├── printer_status_interpreter.dart
-    │   │   └── image_utils.dart
-    │   └── main.dart
+    │   ├── ui/
+    │   │   ├── item.dart
+    │   │   └── printer_status_view.dart
+    │   └── uils/
+    │       ├── image_utils.dart
+    │       └── printer_status_interpreter.dart
+    ├── assets/
+    │   ├── logo.png
+    │   └── resources/
+    │       └── capabilities.json
     └── linux/
         └── ...
 ```
@@ -636,9 +711,10 @@ ti_printer_plugin/
 
 ## Problemas conocidos / troubleshooting
 
-- **Solo se imprime el código QR, pero no el texto / logo (usando el ejemplo):**
-  - Asegurate de **no** reasignar la lista de comandos ESC/POS dentro de los helpers.
-  - Usar siempre `command.addAll(...)` en `TicketBuilder` en vez de `command += ...` dentro de los métodos helper.
+- **El logo se imprime como un rectángulo negro:**
+  - Ocurría cuando la imagen del logo tiene fondo transparente (alpha=0 con R=G=B=0).
+  - La librería `imageRaster()` invierte los píxeles antes de empaquetarlos, combinado con píxeles transparentes en negro, producía un fondo completamente negro.
+  - **Solución aplicada en v1.0.12:** `TicketBuilder._buildLogoBytes()` construye un bitmap 1-bit manualmente, ignorando píxeles transparentes y usando el comando raw `GS v 0` en lugar de `imageRaster()`.
 
 - **Error al escribir en USB: `No existe el dispositivo`:**
   - La impresora se apagó / desconectó.
@@ -653,6 +729,10 @@ ti_printer_plugin/
   - Es el comportamiento esperado ante timeout, falta de respuesta o capacidad no soportada.
   - En Windows, `ReadStatusUsb()` cancela la lectura pendiente tras ~500 ms para evitar bloqueos indefinidos.
   - En Linux, `select()` espera hasta 500 ms y luego devuelve vacío si no hubo respuesta.
+
+- **Error de CMake: `Compatibility with CMake < 3.5 has been removed` (Windows):**
+  - Al usar CMake >= 4.0, el `cmake_minimum_required` de GoogleTest (release-1.11.0) falla porque CMake 4.x eliminó la compatibilidad con versiones < 3.5.
+  - **Solución aplicada en v1.0.12:** Se agregó `set(CMAKE_POLICY_VERSION_MINIMUM 3.5)` antes de `FetchContent_MakeAvailable(googletest)` en `windows/CMakeLists.txt`.
 
 - **No se ven logs nativos en la app:**
   - Los logs nativos (`g_printerr`, `printf`, `OutputDebugStringA`) se ven en la consola o debugger donde lanzás `flutter run`.

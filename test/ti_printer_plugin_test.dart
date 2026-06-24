@@ -23,8 +23,15 @@ class MockTiPrinterPluginPlatform
   Future<bool> openUsbPort(String deviceInstanceId) => Future.value(true);
 
   @override
-  Future<List<String>> getUsbPrinters() =>
-      Future.value(<String>['USB001']);
+  Future<List<PrinterDeviceInfo>> getUsbPrinters() =>
+      Future.value(<PrinterDeviceInfo>[
+        const PrinterDeviceInfo(
+          instanceId: 'USB\\VID_04B8&PID_0202\\12345',
+          displayName: 'TM-T20III',
+          vid: 0x04B8,
+          pid: 0x0202,
+        ),
+      ]);
 
   @override
   Future<Uint8List> readStatusSerial(Uint8List command) =>
@@ -61,7 +68,12 @@ void main() {
     expect(await tiPrinterPlugin.getPlatformVersion(), '42');
     expect(await tiPrinterPlugin.openUsbPort('USB001'), isTrue);
     expect(await tiPrinterPlugin.closeUsbPort(), isTrue);
-    expect(await tiPrinterPlugin.getUsbPrinters(), <String>['USB001']);
+    final printers = await tiPrinterPlugin.getUsbPrinters();
+    expect(printers.length, 1);
+    expect(printers.first.instanceId, 'USB\\VID_04B8&PID_0202\\12345');
+    expect(printers.first.displayName, 'TM-T20III');
+    expect(printers.first.vid, 0x04B8);
+    expect(printers.first.pid, 0x0202);
     expect(
       await tiPrinterPlugin.readStatusUsb(Uint8List.fromList(<int>[0x10])),
       Uint8List.fromList(<int>[0x16]),

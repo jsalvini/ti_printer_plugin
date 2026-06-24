@@ -1,6 +1,6 @@
 name: ti_printer_plugin
 description: "Plugin Flutter para imprimir y consultar estado en impresoras térmicas ESC/POS por USB, ideal para POS y self-checkout en Linux/Windows."
-version: 1.0.11
+version: 1.0.13
 homepage: https://github.com/jsalvini/ti_printer_plugin
 repository: https://github.com/jsalvini/ti_printer_plugin
 issue_tracker: https://github.com/jsalvini/ti_printer_plugin/issues
@@ -32,9 +32,7 @@ flutter:
         pluginClass: TiPrinterPluginCApi
 
   # To add assets to your plugin package, add an assets section, like this:
-  assets:
-    - assets/resources/capabilities.json
-    - packages/ti_printer_plugin/resources/capabilities.json
+  # assets:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   #

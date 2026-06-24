@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'printer_device_info.dart';
 import 'ti_printer_plugin_method_channel.dart';
 
 abstract class TiPrinterPluginPlatform extends PlatformInterface {
@@ -49,7 +50,7 @@ abstract class TiPrinterPluginPlatform extends PlatformInterface {
     throw UnimplementedError('sendCommandToUsb() has not been implemented.');
   }
 
-  Future<List<String>> getUsbPrinters() {
+  Future<List<PrinterDeviceInfo>> getUsbPrinters() {
     throw UnimplementedError('getUsbPrinters() has not been implemented.');
   }
 

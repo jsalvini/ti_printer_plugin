@@ -7,13 +7,15 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:image/image.dart' as img;
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/capability_profile.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/enums.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/generator.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/pos_column.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/pos_styles.dart';
-import 'package:ti_printer_plugin_example/item.dart';
+
+import 'package:ti_printer_plugin_example/ui/item.dart';
 import 'package:ti_printer_plugin_example/uils/image_utils.dart';
+
+import '../esc_pos_utils_platform/src/capability_profile.dart';
+import '../esc_pos_utils_platform/src/enums.dart';
+import '../esc_pos_utils_platform/src/generator.dart';
+import '../esc_pos_utils_platform/src/pos_column.dart';
+import '../esc_pos_utils_platform/src/pos_styles.dart';
 
 class TicketBuilder {
   final CapabilityProfile profile;
@@ -109,17 +111,19 @@ class TicketBuilder {
   }
 
   Future<void> _createHeader(List<int> command) async {
-    const pathLogo = 'assets/logo_bg.png';
-    final logoImage = await _createLogo(pathLogo);
+    final logoBytes = await _buildLogoBytes();
 
-    if (logoImage != null) {
-      command.addAll(printer.imageRaster(logoImage, align: PosAlign.center));
+    if (logoBytes != null) {
+      command.addAll(printer.setStyles(
+        const PosStyles(align: PosAlign.center),
+      ));
+      command.addAll(logoBytes);
       command.addAll(printer.feed(1));
     }
 
     // Cabecera comprobante (lo que ya tenías)
     command.addAll(printer.text(
-      'DINOSAURIO S.A',
+      'TIPRE S.A',
       styles: const PosStyles(
         fontType: PosFontType.fontA,
         bold: true,
@@ -131,7 +135,7 @@ class TicketBuilder {
     ));
 
     command.addAll(printer.text(
-      'Razon social: DINOSAURIO S.A',
+      'Razon social: TIPRE S.A',
       styles: const PosStyles(align: PosAlign.left),
     ));
     command.addAll(printer.text(
@@ -158,26 +162,59 @@ class TicketBuilder {
     ));
   }
 
-  Future<img.Image?> _createLogo(String path) async {
-    final ByteData data = await rootBundle.load(path);
-    img.Image? logoImage;
+  Future<List<int>?> _buildLogoBytes() async {
+    const pathLogo = 'assets/logo.png';
+    try {
+      final ByteData data = await rootBundle.load(pathLogo);
+      if (data.lengthInBytes == 0) return null;
 
-    if (data.lengthInBytes > 0) {
       final Uint8List imageBytes = data.buffer.asUint8List();
-      final decodedImage = img.decodeImage(imageBytes)!;
-      img.Image thumbnail = img.copyResize(
-        decodedImage,
-        height: 130,
-      );
-      img.Image originalImg =
-          img.copyResize(decodedImage, width: 380, height: 130);
-      img.fill(originalImg, color: img.ColorRgb8(255, 255, 255));
-      var padding = (originalImg.width - thumbnail.width) / 2;
+      final decodedImage = img.decodeImage(imageBytes);
+      if (decodedImage == null) return null;
 
-      drawImage(originalImg, thumbnail, dstX: padding.toInt());
-      logoImage = img.grayscale(originalImg);
+      const int targetHeight = 130;
+      final resized = img.copyResize(decodedImage, height: targetHeight);
+      final int width = resized.width;
+      final int height = resized.height;
+      final int paddedWidth =
+          width % 8 == 0 ? width : width + (8 - width % 8);
+      final int bytesPerRow = paddedWidth ~/ 8;
+
+      final List<int> rgba = resized.getBytes(order: img.ChannelOrder.rgba);
+
+      final bitmap = Uint8List(bytesPerRow * height);
+
+      for (int y = 0; y < height; y++) {
+        for (int x = 0; x < paddedWidth; x++) {
+          bool isDark = false;
+          if (x < width) {
+            final int idx = (y * width + x) * 4;
+            final int r = rgba[idx];
+            final int g = rgba[idx + 1];
+            final int b = rgba[idx + 2];
+            final int a = rgba[idx + 3];
+            if (a > 128) {
+              final int lum = (r * 299 + g * 587 + b * 114) ~/ 1000;
+              isDark = lum < 128;
+            }
+          }
+          if (isDark) {
+            final int byteIndex = y * bytesPerRow + (x ~/ 8);
+            final int bitIndex = 7 - (x % 8);
+            bitmap[byteIndex] |= (1 << bitIndex);
+          }
+        }
+      }
+
+      List<int> bytes = [];
+      bytes += [0x1D, 0x76, 0x30, 0x00];
+      bytes += [bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF];
+      bytes += [height & 0xFF, (height >> 8) & 0xFF];
+      bytes += bitmap;
+      return bytes;
+    } catch (_) {
+      return null;
     }
-    return logoImage;
   }
 
   void _createItems(List<int> command, List<Item> items) {

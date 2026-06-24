@@ -13,8 +13,17 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>  // major(), minor()
 #include <sys/select.h>
 #include <errno.h>
+
+// Para lectura de sysfs (idVendor / idProduct)
+#include <fstream>
+#include <sstream>
+#include <climits>   // PATH_MAX
+#include <cstdlib>   // realpath
+#include <utility>   // std::pair
+#include <cstdio>    // snprintf
 
 #include "ti_printer_plugin_private.h"
 
@@ -68,19 +77,101 @@ static void add_dev_entries_with_prefix(const char *dir_path,
   closedir(d);
 }
 
+// Resuelve la ruta sysfs real para un dispositivo /dev/...
+// Ejemplo: /dev/usb/lp0 → /sys/devices/.../1-2:1.0/usbmisc/lp0
+static std::string resolve_sysfs_path(const std::string &dev_path) {
+    struct stat st;
+    if (stat(dev_path.c_str(), &st) != 0 || !S_ISCHR(st.st_mode))
+        return "";
+
+    char link_path[PATH_MAX];
+    snprintf(link_path, sizeof(link_path), "/sys/dev/char/%u:%u",
+             major(st.st_rdev), minor(st.st_rdev));
+
+    char resolved[PATH_MAX];
+    if (!realpath(link_path, resolved))
+        return "";
+
+    return resolved;
+}
+
+// Camina desde sysfs_path hacia arriba buscando idVendor/idProduct
+// en el árbol de dispositivos USB.
+static std::pair<int, int> read_vid_pid_from_sysfs(const std::string &sysfs_path) {
+    std::string dir = sysfs_path;
+
+    while (true) {
+        std::string vendor_path = dir + "/idVendor";
+        std::string product_path = dir + "/idProduct";
+
+        std::ifstream vf(vendor_path);
+        std::ifstream pf(product_path);
+
+        if (vf.good() && pf.good()) {
+            int vid = 0, pid = 0;
+            vf >> std::hex >> vid;
+            pf >> std::hex >> pid;
+            return {vid, pid};
+        }
+
+        auto pos = dir.rfind('/');
+        if (pos == std::string::npos || pos == 0)
+            break;
+        dir = dir.substr(0, pos);
+    }
+
+    return {0, 0};
+}
+
 // Devuelve posibles rutas de impresoras térmicas USB.
-static std::vector<std::string> list_usb_printers()
+struct PrinterDeviceInfo {
+  std::string instanceId;
+  std::string displayName;
+  int vid;
+  int pid;
+};
+
+static std::vector<PrinterDeviceInfo> list_usb_printers()
 {
-  std::vector<std::string> paths;
+  std::vector<PrinterDeviceInfo> printers;
 
-  // Impresoras "raw" suelen aparecer como /dev/usb/lpX
-  add_dev_entries_with_prefix("/dev/usb", "lp", paths);
+  auto add_entries = [&](const std::string &dir_prefix, const std::string &dev_prefix) {
+    std::vector<std::string> paths;
+    add_dev_entries_with_prefix(dir_prefix.c_str(), dev_prefix.c_str(), paths);
+    for (const auto &path : paths) {
+      PrinterDeviceInfo info;
+      info.instanceId = path;
+      info.vid = 0;
+      info.pid = 0;
 
-  // Muchos modelos de impresora térmica aparecen como /dev/ttyUSBx o /dev/ttyACMx
-  add_dev_entries_with_prefix("/dev", "ttyUSB", paths);
-  add_dev_entries_with_prefix("/dev", "ttyACM", paths);
+      // Resolver VID/PID real desde sysfs
+      std::string sysfs_path = resolve_sysfs_path(path);
+      if (!sysfs_path.empty()) {
+        auto vid_pid = read_vid_pid_from_sysfs(sysfs_path);
+        info.vid = vid_pid.first;
+        info.pid = vid_pid.second;
+      }
 
-  return paths;
+      // displayName: si tenemos VID/PID, usamos un nombre descriptivo
+      if (info.vid > 0 || info.pid > 0) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "USB Printer (VID:0x%04X, PID:0x%04X)",
+                 info.vid, info.pid);
+        info.displayName = buf;
+      } else {
+        auto pos = path.rfind('/');
+        info.displayName = (pos != std::string::npos) ? path.substr(pos + 1) : path;
+      }
+
+      printers.push_back(info);
+    }
+  };
+
+  add_entries("/dev/usb", "lp");
+  add_entries("/dev", "ttyUSB");
+  add_entries("/dev", "ttyACM");
+
+  return printers;
 }
 
 static bool open_usb_port(TiPrinterPlugin *self, const std::string &device_path)
@@ -273,12 +364,20 @@ static void ti_printer_plugin_handle_method_call(
   }
   else if (std::strcmp(method, "getUsbPrinters") == 0)
   {
-    // Devuelve una lista de rutas /dev/... como List<String>
     auto printers = list_usb_printers();
     g_autoptr(FlValue) result = fl_value_new_list();
-    for (const auto &path : printers)
+    for (const auto &printer : printers)
     {
-      fl_value_append_take(result, fl_value_new_string(path.c_str()));
+      g_autoptr(FlValue) map = fl_value_new_map();
+      fl_value_set_string_take(map, "instanceId",
+          fl_value_new_string(printer.instanceId.c_str()));
+      fl_value_set_string_take(map, "displayName",
+          fl_value_new_string(printer.displayName.c_str()));
+      fl_value_set_string_take(map, "vid",
+          fl_value_new_int(printer.vid));
+      fl_value_set_string_take(map, "pid",
+          fl_value_new_int(printer.pid));
+      fl_value_append_take(result, fl_value_ref(map));
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
   }
@@ -359,46 +458,33 @@ static void ti_printer_plugin_handle_method_call(
   }
   else if (std::strcmp(method, "readStatusUsb") == 0)
   {
-    // Argumento: Map {"command": Uint8List} como en Windows
+    // Argumento: Uint8List directamente (alineado con sendCommandToUsb)
     FlValue *args = fl_method_call_get_args(method_call);
-    if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP)
+    if (args != nullptr &&
+        fl_value_get_type(args) == FL_VALUE_TYPE_UINT8_LIST)
     {
-      FlValue *cmd_val = fl_value_lookup_string(args, "command");
-      if (cmd_val != nullptr &&
-          fl_value_get_type(cmd_val) == FL_VALUE_TYPE_UINT8_LIST)
+      const uint8_t *cmd_bytes = fl_value_get_uint8_list(args);
+      size_t cmd_len = fl_value_get_length(args);
+      std::vector<uint8_t> command(cmd_bytes, cmd_bytes + cmd_len);
+
+      std::vector<uint8_t> status = read_status_usb(self, command);
+
+      g_autoptr(FlValue) result = nullptr;
+      if (!status.empty())
       {
-        const uint8_t *cmd_bytes = fl_value_get_uint8_list(cmd_val);
-        size_t cmd_len = fl_value_get_length(cmd_val);
-        std::vector<uint8_t> command(cmd_bytes, cmd_bytes + cmd_len);
-
-        std::vector<uint8_t> status = read_status_usb(self, command);
-
-        g_autoptr(FlValue) result = nullptr;
-        if (!status.empty())
-        {
-          result = fl_value_new_uint8_list(status.data(), status.size());
-        }
-        else
-        {
-          // Devolver lista vacía si no hubo respuesta
-          result = fl_value_new_uint8_list(nullptr, 0);
-        }
-        response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+        result = fl_value_new_uint8_list(status.data(), status.size());
       }
       else
       {
-        response = FL_METHOD_RESPONSE(
-            fl_method_error_response_new("INVALID_ARGUMENT",
-                                         "Campo 'command' inválido o no es "
-                                         "Uint8List.",
-                                         nullptr));
+        result = fl_value_new_uint8_list(nullptr, 0);
       }
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
     }
     else
     {
       response = FL_METHOD_RESPONSE(
           fl_method_error_response_new("INVALID_ARGUMENT",
-                                       "Se esperaba un mapa de argumentos.",
+                                       "Expected Uint8List as argument.",
                                        nullptr));
     }
   }

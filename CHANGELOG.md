@@ -65,3 +65,65 @@
 ## 1.0.11
 
 - Update docuemntación
+
+## 1.0.12
+
+- **Reestructuración del plugin:**
+  - La librería `esc_pos_utils_platform` se movió del plugin (`lib/`) a la app de ejemplo (`example/lib/`). El plugin ahora es más liviano y solo contiene la capa de comunicación nativa.
+  - Se eliminaron dependencias y archivos no utilizados del plugin.
+
+- **API simplificada (Dart + nativo):**
+  - `readStatusUsb(Uint8List command)` ahora acepta `Uint8List` directamente (ya no requiere `Map {"command": ...}`).
+  - `readStatusSerial(Uint8List command)` idem.
+  - Actualizados `lib/ti_printer_plugin_method_channel.dart`, `windows/ti_printer_plugin.cpp` y `linux/ti_printer_plugin.cc` para reflejar el cambio.
+
+- **Logo printing (example):**
+  - Corregido error que imprimía un rectángulo negro en lugar del logo.
+  - `_createLogo()` + `imageRaster()` reemplazado por `_buildLogoBytes()` que construye un bitmap 1-bit manualmente (pixel por pixel) y lo envía con el comando raw `GS v 0`.
+  - Se ignoran píxeles transparentes (alpha <= 128) y se calcula luminancia correcta con pesos RGB.
+  - Se corrigió el uso de `getBytes()` para leer datos de píxeles, evitando inconsistencias con `getPixel()`.
+
+- **Compatibilidad con CMake >= 4.0 (Windows):**
+  - Agregado `set(CMAKE_POLICY_VERSION_MINIMUM 3.5)` en `windows/CMakeLists.txt` antes de `FetchContent_MakeAvailable(googletest)`, resolviendo el error `Compatibility with CMake < 3.5 has been removed`.
+
+- **Mejoras en la app de ejemplo:**
+  - `PrinterState` y `PrinterLogEntry` ahora usan `Equatable` para comparaciones correctas.
+  - Agregado `PrinterStatusView` con UI de monitoreo en tiempo real (online, papel, tapa, logs).
+  - `TicketBuilder` ahora usa rutas relativas para importar `esc_pos_utils_platform`.
+  - Actualizada la UI para mostrar estado detallado de la impresora.
+  - Agregados assets `assets/logo.png` y `assets/resources/capabilities.json` en el ejemplo.
+  - Mejorado `PrinterStatusInterpreter` con interpretación robusta de flags de estado DLE EOT.
+  - Actualizado `image_utils.dart` con corrección en el cálculo de `dstW` (se eliminó asignación dentro del ternario).
+
+- **Correcciones en Linux:**
+  - `readStatusUsb` alineado con Windows: acepta `Uint8List` directamente.
+  - Manejo robusto de errores en escritura USB (`send_command_to_usb` con reintento en `EINTR` y detección de `ENODEV`/`EIO`/`EBADF`).
+
+- **Actualización de documentación:**
+  - README actualizado con la nueva estructura, API, troubleshooting para logo negro y error de CMake.
+  - Corregidos typos y desactualizaciones en la documentación existente.
+
+## 1.0.13
+
+- **API breaking: `getUsbPrinters()` ahora retorna `List<PrinterDeviceInfo>` en lugar de `List<String>`:**
+  - Nuevo modelo `PrinterDeviceInfo` con `instanceId`, `displayName`, `vid`, `pid`.
+  - `openUsbPort()` ahora requiere `device.instanceId` en vez del string directo.
+  - `PrinterDeviceInfo.resolvedDisplayName`: getter que busca el VID/PID en la base de datos de impresoras conocidas y retorna un nombre legible.
+  - Parseo de VID/PID desde el `instanceId` nativo (formato `USB\VID_xxxx&PID_xxxx\...`).
+
+- **Nuevo `lib/database_printer.dart`:**
+  - Clase `KnownUsbPrinter` y lista `knownThermalUsbPrinters` con +30 entradas (Epson, Star, Bixolon, Citizen, Zebra, TSC, DYMO, genéricas POS58/POS80, Gprinter, Rongta).
+  - Función `lookupPrinterInfo(vid, pid)` para búsqueda programática.
+  - Exportado desde `ti_printer_plugin.dart`.
+
+- **Windows `ListUsbInstance()` — PLG-16 (Camino A + B):**
+  - Camino A: Segunda pasada con `GUID_DEVCLASS_PRINTER` para capturar impresoras con drivers propietarios (Epson, Star, Bixolon), con dedup contra la primera pasada.
+  - Camino B: Retorna `vector<PrinterDeviceInfo>` con `instanceId`, `displayName`, `vid`, `pid`.
+  - Helpers estáticos reemplazados por lambdas inline para eliminar posibles bugs de linking.
+  - `OutputDebugStringA` agregado para depurar fallos de `SetupDiGetClassDevs` y `CM_Get_Device_ID`.
+
+- **Mejoras en la app de ejemplo:**
+  - `PrinterState.usbPrinters` actualizado a `List<PrinterDeviceInfo>`.
+  - `PrinterState.selectedUsbPrinter` actualizado a `PrinterDeviceInfo?`.
+  - Logs de `refreshUsbPrinters()` muestran `resolvedDisplayName` e `instanceId` de cada impresora.
+  - `DropdownButtonFormField` usa `p.resolvedDisplayName` como texto visible.

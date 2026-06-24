@@ -4,13 +4,16 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/enums.dart';
 import 'package:ti_printer_plugin/ti_printer_plugin.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/capability_profile.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/generator.dart';
-import 'package:ti_printer_plugin_example/item.dart';
+import 'package:ti_printer_plugin_example/ui/item.dart';
 import 'package:ti_printer_plugin_example/uils/printer_status_interpreter.dart';
 
+import '../esc_pos_utils_platform/src/barcode.dart';
+import '../esc_pos_utils_platform/src/capability_profile.dart';
+import '../esc_pos_utils_platform/src/enums.dart';
+import '../esc_pos_utils_platform/src/generator.dart';
+import '../esc_pos_utils_platform/src/pos_column.dart';
+import '../esc_pos_utils_platform/src/pos_styles.dart';
 import '../models/printer_state.dart';
 import 'ticket_builder.dart';
 
@@ -205,11 +208,19 @@ class PrinterController extends ChangeNotifier {
     final result = await _plugin.openSerialPort(port, baudRate);
     _addLog('openSerialPort($port, $baudRate): $result');
 
+    _update((s) => s.copyWith(isSerialOpen: result));
+
     if (!result) {
       _addLog(
         '[SERIAL] apertura no disponible o fallida en la plataforma actual',
       );
     }
+  }
+
+  Future<void> closeSerialPort() async {
+    final result = await _plugin.closeSerialPort();
+    _addLog('closeSerialPort: $result');
+    _update((s) => s.copyWith(isSerialOpen: !result));
   }
 
   Future<void> checkSerialStatus() async {
@@ -277,7 +288,12 @@ class PrinterController extends ChangeNotifier {
 
   Future<void> refreshUsbPrinters() async {
     final printers = await _plugin.getUsbPrinters();
-    _addLog('USB printers: $printers');
+    for (final p in printers) {
+      _addLog('[USB]  ${p.resolvedDisplayName}  instanceId=${p.instanceId}');
+    }
+    if (printers.isEmpty) {
+      _addLog('USB printers: (none)');
+    }
 
     _update((s) => s.copyWith(
           usbPrinters: printers,
@@ -296,12 +312,23 @@ class PrinterController extends ChangeNotifier {
       _addLog('openSelectedUsb: no device selected');
       throw Exception('No hay impresora USB seleccionada');
     }
-    final result = await _plugin.openUsbPort(device);
-    _addLog('openUsbPort($device): $result');
+    final result = await _plugin.openUsbPort(device.instanceId);
+    _addLog('openUsbPort(instanceId=${device.instanceId}): $result');
+
+    _update((s) => s.copyWith(isUsbOpen: result));
 
     if (!result) {
       throw Exception('No se pudo abrir el puerto USB seleccionado');
     }
+  }
+
+  Future<void> closeUsbPort() async {
+    if (isUsbMonitoring) {
+      stopUsbMonitor();
+    }
+    final result = await _plugin.closeUsbPort();
+    _addLog('closeUsbPort: $result');
+    _update((s) => s.copyWith(isUsbOpen: !result));
   }
 
   Future<void> checkUsbStatus() async {
@@ -361,6 +388,120 @@ class PrinterController extends ChangeNotifier {
     }
   }
 
+  // --- Impresión de página de prueba ---
+
+  Future<void> printTestPage() async {
+    final wasMonitoring = isUsbMonitoring;
+    if (wasMonitoring) stopUsbMonitor();
+
+    try {
+      final profile = await CapabilityProfile.load();
+      final gen = Generator(PaperSize.mm80, profile);
+      final bytes = <int>[];
+
+      bytes.addAll(gen.reset());
+      bytes.addAll(gen.text('PAGINA DE PRUEBA ESC/POS',
+          styles: const PosStyles(
+            align: PosAlign.center,
+            bold: true,
+            height: PosTextSize.size2,
+            width: PosTextSize.size2,
+          )));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.text('=======================',
+          styles: const PosStyles(align: PosAlign.center)));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.text('TEXTOS:',
+          styles: const PosStyles(bold: true, underline: true)));
+      bytes.addAll(gen.text('Normal (size 1)'));
+      bytes.addAll(gen.text('Doble altura',
+          styles: const PosStyles(height: PosTextSize.size2)));
+      bytes.addAll(gen.text('Doble ancho',
+          styles: const PosStyles(width: PosTextSize.size2)));
+      bytes.addAll(gen.text('Doble todo',
+          styles: const PosStyles(
+              height: PosTextSize.size2, width: PosTextSize.size2)));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.text('ESTILOS:',
+          styles: const PosStyles(bold: true, underline: true)));
+      bytes.addAll(gen.text('Negrita', styles: const PosStyles(bold: true)));
+      bytes.addAll(
+          gen.text('Subrayado', styles: const PosStyles(underline: true)));
+      bytes.addAll(
+          gen.text('Invertido', styles: const PosStyles(reverse: true)));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.text('ALINEACION:',
+          styles: const PosStyles(bold: true, underline: true)));
+      bytes.addAll(
+          gen.text('Izquierda', styles: const PosStyles(align: PosAlign.left)));
+      bytes.addAll(
+          gen.text('Centro', styles: const PosStyles(align: PosAlign.center)));
+      bytes.addAll(
+          gen.text('Derecha', styles: const PosStyles(align: PosAlign.right)));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.text('CARACTERES ESPECIALES:',
+          styles: const PosStyles(bold: true, underline: true)));
+      bytes.addAll(gen.text('àÀ éÉ èÈ êÊ ñÑ üÜ çÇ',
+          styles: const PosStyles(codeTable: 'CP1252')));
+      bytes.addAll(gen.text('ñandú, pingüino, corazón',
+          styles: const PosStyles(codeTable: 'CP1252')));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.hr());
+      bytes.addAll(gen.text('COLUMNAS:',
+          styles: const PosStyles(bold: true, underline: true)));
+      bytes.addAll(gen.row([
+        PosColumn(text: 'Col1', width: 4),
+        PosColumn(
+            text: 'Col2',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.center)),
+        PosColumn(
+            text: 'Col3',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right)),
+      ]));
+      bytes.addAll(gen.row([
+        PosColumn(text: 'Item A', width: 8),
+        PosColumn(
+            text: '\$1.50',
+            width: 4,
+            styles: const PosStyles(align: PosAlign.right)),
+      ]));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.hr());
+      bytes.addAll(gen.text('CODIGO DE BARRAS:',
+          styles: const PosStyles(bold: true, underline: true)));
+      bytes
+          .addAll(gen.barcode(Barcode.upcA([1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 4])));
+      bytes.addAll(gen.feed(1));
+
+      bytes.addAll(gen.text('CODIGO QR:',
+          styles: const PosStyles(bold: true, underline: true)));
+      bytes.addAll(gen.qrcode('https://github.com/ti-printer-plugin'));
+      bytes.addAll(gen.feed(2));
+
+      bytes.addAll(gen.text('Fin de pagina de prueba',
+          styles: const PosStyles(align: PosAlign.center)));
+      bytes.addAll(gen.feed(2));
+      bytes.addAll(gen.cut());
+
+      _addLog('TestPage bytes: ${bytes.length}');
+      final data = Uint8List.fromList(bytes);
+      final ok = await _plugin.sendCommandToUsb(data);
+      _addLog('sendCommandToUsb (test): $ok');
+      if (!ok) throw Exception('Falló el envío de la página de prueba');
+    } finally {
+      if (wasMonitoring) startUsbAutoMonitor();
+    }
+  }
+
   // --- Impresión de ticket por USB ---
 
   Future<void> printUsbTicket({
@@ -402,9 +543,13 @@ class PrinterController extends ChangeNotifier {
     }
   }
 
-  void updateSelectedUsb(String? value) {
+  void updateSelectedUsb(PrinterDeviceInfo? value) {
     _update(
       (s) => s.copyWith(selectedUsbPrinter: value),
     );
+  }
+
+  void clearLogs() {
+    _update((s) => s.copyWith(logs: []));
   }
 }

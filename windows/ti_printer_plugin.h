@@ -5,9 +5,17 @@
 #include <flutter/plugin_registrar_windows.h>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace ti_printer_plugin {
+
+struct PrinterDeviceInfo {
+  std::wstring instanceId;
+  std::wstring displayName;
+  int vid;
+  int pid;
+};
 
 class TiPrinterPlugin : public flutter::Plugin {
  public:
@@ -34,7 +42,7 @@ class TiPrinterPlugin : public flutter::Plugin {
 
     bool OpenUsbPort(const std::string& device_instance_id);
     bool CloseUsbPort();
-    std::vector<std::wstring> ListUsbInstance();
+    std::vector<PrinterDeviceInfo> ListUsbInstance();
     std::string convertWStringToString(const std::wstring& wstr);
 
     std::vector<uint8_t> ReadStatusUsb(const std::vector<uint8_t>& command);

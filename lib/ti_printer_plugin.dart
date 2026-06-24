@@ -1,5 +1,8 @@
 import 'dart:typed_data';
 
+export 'database_printer.dart';
+import 'printer_device_info.dart';
+export 'printer_device_info.dart';
 import 'ti_printer_plugin_platform_interface.dart';
 
 class TiPrinterPlugin {
@@ -23,7 +26,7 @@ class TiPrinterPlugin {
     return TiPrinterPluginPlatform.instance.sendCommandToSerial(command);
   }
 
-  Future<List<String>> getUsbPrinters() {
+  Future<List<PrinterDeviceInfo>> getUsbPrinters() {
     return TiPrinterPluginPlatform.instance.getUsbPrinters();
   }
 

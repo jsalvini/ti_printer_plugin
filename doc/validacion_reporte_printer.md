@@ -6,8 +6,8 @@ Fecha: 2026-06-23
 
 Este análisis contrasta:
 
-- `docs/analisis_printer.md`
-- `docs/fix_aplicados.md`
+- `doc/analisis_printer.md`
+- `doc/fixes_aplicados_pendientes.md`
 - el código actual de `auto_compra`
 - el paquete instalado `ti_printer_plugin 1.0.11` en `C:\Users\lenovo\AppData\Local\Pub\Cache\hosted\pub.dev\ti_printer_plugin-1.0.11`
 
@@ -15,7 +15,7 @@ La validación fue estática. No corrí `flutter test`, `flutter analyze` ni pru
 
 ## Conclusión ejecutiva
 
-El paquete `ti_printer_plugin` sí tiene aplicados casi todos los fixes documentados en `fix_aplicados.md`, y eso deja la base nativa bastante más sólida que la descrita en el incidente original.
+El paquete `ti_printer_plugin` sí tiene aplicados casi todos los fixes documentados en `fixes_aplicados_pendientes.md`, y eso deja la base nativa bastante más sólida que la descrita en el incidente original.
 
 El problema pendiente está principalmente del lado app:
 
@@ -32,7 +32,7 @@ En términos operativos, el reporte original ya no describe correctamente el est
 
 #### Verificados como ajustados
 
-Los siguientes puntos sí aparecen implementados en `ti_printer_plugin 1.0.11` y coinciden con `docs/fix_aplicados.md`:
+Los siguientes puntos sí aparecen implementados en `ti_printer_plugin 1.0.11` y coinciden con `doc/fixes_aplicados_pendientes.md`:
 
 | Hallazgo | Estado | Evidencia |
 | --- | --- | --- |

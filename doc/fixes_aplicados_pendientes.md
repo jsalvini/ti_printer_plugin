@@ -1,6 +1,6 @@
 # Fixes aplicados y pendientes · ti_printer_plugin
 
-Basado en `docs/analisis_printer.md` (22 hallazgos PLG-01 a PLG-22) y trabajo de sesiones de corrección.
+Basado en `doc/analisis_printer.md` (22 hallazgos PLG-01 a PLG-22) y trabajo de sesiones de corrección.
 
 ---
 
@@ -160,6 +160,45 @@ await plugin.openUsbPort(printers.first.instanceId); // .instanceId
 
 ---
 
+## PLG-18 — Resuelto en sesión actual
+
+**Estado:** Aplicado
+
+**Archivo:** `linux/ti_printer_plugin.cc:79-103` — `list_usb_printers()` + helpers nuevos
+
+**Problema original:** En Linux aparecían Arduinos, módems 4G, GPS, lectores RFID, conversores FT232/CH340 además de impresoras reales.
+
+**Solución:**
+
+Se agregaron dos funciones helper que resuelven VID/PID real desde sysfs para cada dispositivo encontrado:
+
+1. **`resolve_sysfs_path(dev_path)`** — Dado `/dev/usb/lp0`, obtiene la ruta sysfs real siguiendo el symlink `/sys/dev/char/<major>:<minor>` → `/sys/devices/.../usb1/1-2:1.0/usbmisc/lp0`
+
+2. **`read_vid_pid_from_sysfs(sysfs_path)`** — Camina hacia arriba en el árbol sysfs buscando un directorio que contenga `idVendor` e `idProduct`, y los parsea a valores enteros hexadecimales.
+
+**En `list_usb_printers()`:**
+
+```cpp
+std::string sysfs_path = resolve_sysfs_path(path);
+if (!sysfs_path.empty()) {
+    auto vid_pid = read_vid_pid_from_sysfs(sysfs_path);
+    info.vid = vid_pid.first;
+    info.pid = vid_pid.second;
+}
+```
+
+**Resultado:**
+- Cada `PrinterDeviceInfo` ahora trae `vid` y `pid` reales (no hardcodeados a 0)
+- `displayName` se genera como `"USB Printer (VID:0xPPPP, PID:0xPPPP)"` si se encontraron VID/PID
+- Si no se encontraron (falló el acceso a sysfs), mantiene el nombre base del dispositivo (ej: `"lp0"`)
+- El `resolvedDisplayName` de Dart aplica el database `knownThermalUsbPrinters` sobre estos VID/PID reales
+
+**Impacto en el cliente:** Un Arduino en `/dev/ttyACM0` se mostrará como `"USB Printer (VID:0x2341, PID:0x0043)"` en lugar de `"ttyACM0"`, y una impresora Epson mostrará su nombre del database.
+
+**Dependencias:** Sin nuevas dependencias externas. Usa solo POSIX (`stat`, `realpath`, `ifstream`, `snprintf`).
+
+---
+
 ## PLG-23 — Resuelto en sesión actual
 
 **Estado:** Aplicado
@@ -206,43 +245,6 @@ KnownUsbPrinter(
   protocol: 'escpos',  // o 'zpl', 'tspl', 'dymo', etc.
 ),
 ```
-
-## PLG-18 — Resuelto en sesión actual
-
-**Estado:** Aplicado
-
-**Archivo:** `linux/ti_printer_plugin.cc:79-103` — `list_usb_printers()` + helpers nuevos
-
-**Problema original:** En Linux aparecían Arduinos, módems 4G, GPS, lectores RFID, conversores FT232/CH340 además de impresoras reales.
-
-**Solución:**
-
-Se agregaron dos funciones helper que resuelven VID/PID real desde sysfs para cada dispositivo encontrado:
-
-1. **`resolve_sysfs_path(dev_path)`** — Dado `/dev/usb/lp0`, obtiene la ruta sysfs real siguiendo el symlink `/sys/dev/char/<major>:<minor>` → `/sys/devices/.../usb1/1-2:1.0/usbmisc/lp0`
-
-2. **`read_vid_pid_from_sysfs(sysfs_path)`** — Camina hacia arriba en el árbol sysfs buscando un directorio que contenga `idVendor` e `idProduct`, y los parsea a valores enteros hexadecimales.
-
-**En `list_usb_printers()`:**
-
-```cpp
-std::string sysfs_path = resolve_sysfs_path(path);
-if (!sysfs_path.empty()) {
-    auto vid_pid = read_vid_pid_from_sysfs(sysfs_path);
-    info.vid = vid_pid.first;
-    info.pid = vid_pid.second;
-}
-```
-
-**Resultado:**
-- Cada `PrinterDeviceInfo` ahora trae `vid` y `pid` reales (no hardcodeados a 0)
-- `displayName` se genera como `"USB Printer (VID:0xPPPP, PID:0xPPPP)"` si se encontraron VID/PID
-- Si no se encontraron (falló el acceso a sysfs), mantiene el nombre base del dispositivo (ej: `"lp0"`)
-- El `resolvedDisplayName` de Dart aplica el database `knownThermalUsbPrinters` sobre estos VID/PID reales
-
-**Impacto en el cliente:** Un Arduino en `/dev/ttyACM0` se mostrará como `"USB Printer (VID:0x2341, PID:0x0043)"` en lugar de `"ttyACM0"`, y una impresora Epson mostrará su nombre del database.
-
-**Dependencias:** Sin nuevas dependencias externas. Usa solo POSIX (`stat`, `realpath`, `ifstream`, `snprintf`).
 
 ---
 

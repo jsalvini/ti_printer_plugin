@@ -11,11 +11,11 @@ import 'package:image/image.dart' as img;
 import 'package:ti_printer_plugin_example/ui/item.dart';
 import 'package:ti_printer_plugin_example/uils/image_utils.dart';
 
-import '../esc_pos_utils_platform/src/capability_profile.dart';
-import '../esc_pos_utils_platform/src/enums.dart';
-import '../esc_pos_utils_platform/src/generator.dart';
-import '../esc_pos_utils_platform/src/pos_column.dart';
-import '../esc_pos_utils_platform/src/pos_styles.dart';
+import 'package:ti_printer_plugin/esc_pos_utils_platform/src/capability_profile.dart';
+import 'package:ti_printer_plugin/esc_pos_utils_platform/src/enums.dart';
+import 'package:ti_printer_plugin/esc_pos_utils_platform/src/generator.dart';
+import 'package:ti_printer_plugin/esc_pos_utils_platform/src/pos_column.dart';
+import 'package:ti_printer_plugin/esc_pos_utils_platform/src/pos_styles.dart';
 
 class TicketBuilder {
   final CapabilityProfile profile;

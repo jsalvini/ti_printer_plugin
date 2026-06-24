@@ -13,7 +13,7 @@ Incluye:
   - Construcción de ticket con logo, encabezado, detalle, totales y código QR.
   - Generación de imágenes ESC/POS mediante bitmap 1-bit manual.
   - Consola de logs en UI.
-- La app de ejemplo incluye su propia copia de la librería ESC/POS (`esc_pos_utils_platform` dentro de `example/lib/`) para generar comandos de ticket.
+- El plugin incluye la librería ESC/POS (`esc_pos_utils_platform` dentro de `lib/`) para generar comandos de ticket.
 
 > ⚠️ Importante:  
 > Todo lo que está dentro de la carpeta `example/` **no forma parte del plugin** publicado.  
@@ -686,7 +686,21 @@ ti_printer_plugin/
 │   ├── ti_printer_plugin_method_channel.dart
 │   ├── ti_printer_plugin_platform_interface.dart
 │   ├── printer_device_info.dart          # Modelo PrinterDeviceInfo
-│   └── database_printer.dart             # Mapeo VID/PID → nombre conocido
+│   ├── database_printer.dart             # Mapeo VID/PID → nombre conocido
+│   └── esc_pos_utils_platform/           # Librería ESC/POS para generar comandos
+│       ├── esc_pos_utils_platform.dart
+│       └── src/
+│           ├── barcode.dart
+│           ├── capability_profile.dart
+│           ├── commands.dart
+│           ├── enums.dart
+│           ├── generator.dart
+│           ├── pos_column.dart
+│           ├── pos_styles.dart
+│           └── qrcode.dart
+├── assets/
+│   └── resources/
+│       └── capabilities.json
 ├── linux/
 │   ├── CMakeLists.txt
 │   ├── ti_printer_plugin.cc
@@ -704,7 +718,6 @@ ti_printer_plugin/
 └── example/
     ├── lib/
     │   ├── main.dart
-    │   ├── esc_pos_utils_platform/   # Copia local de la librería ESC/POS
     │   ├── logic/
     │   │   ├── printer_controller.dart
     │   │   └── ticket_builder.dart
@@ -718,9 +731,7 @@ ti_printer_plugin/
     │       ├── image_utils.dart
     │       └── printer_status_interpreter.dart
     ├── assets/
-    │   ├── logo.png
-    │   └── resources/
-    │       └── capabilities.json
+    │   └── logo.png
     └── linux/
         └── ...
 ```

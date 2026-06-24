@@ -48,7 +48,7 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
         final state = _controller.state;
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Demo TI Printer'),
+            title: const Text('TIPrinter', overflow: TextOverflow.ellipsis),
             actions: [
               IconButton(
                 icon: const Icon(Icons.info_outline),
@@ -61,18 +61,30 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildUsbCard(state),
-                const SizedBox(height: 12),
-                _buildSerialCard(state),
-                const SizedBox(height: 12),
-                _buildConsoleCard(state),
-              ],
-            ),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: 600.0,
+                    minHeight: constraints.maxHeight,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildUsbCard(state),
+                        const SizedBox(height: 12),
+                        _buildSerialCard(state),
+                        const SizedBox(height: 12),
+                        _buildConsoleCard(state),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         );
       },
@@ -139,8 +151,10 @@ class _PrinterStatusViewState extends State<PrinterStatusView> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _btn('Imprimir Ticket', Icons.receipt, () => _exec(_printTicket)),
-                _btn('Test Page', Icons.bug_report, () => _exec(_controller.printTestPage)),
+                _btn('Imprimir Ticket', Icons.receipt,
+                    () => _exec(_printTicket)),
+                _btn('Test Page', Icons.bug_report,
+                    () => _exec(_controller.printTestPage)),
               ],
             ),
             const SizedBox(height: 8),

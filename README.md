@@ -82,10 +82,13 @@ Incluye:
 
 - **Linux**:
   - Plugin nativo en C++ (archivo principal: `linux/ti_printer_plugin.cc`).
-  - `getUsbPrinters()` devuelve rutas de dispositivo candidatas, por ejemplo:
+  - `getUsbPrinters()` devuelve `List<PrinterDeviceInfo>` con `instanceId`, `displayName`, `vid` y `pid` reales.
+  - Enumeración de dispositivos candidatos:
     - `/dev/usb/lp*`
     - `/dev/ttyUSB*`
     - `/dev/ttyACM*`
+  - Para cada dispositivo, resuelve VID/PID real desde sysfs recorriendo `/sys/dev/char/<major>:<minor>` y caminando hacia arriba hasta encontrar `idVendor`/`idProduct`.
+  - Si no encuentra VID/PID (falla el acceso a sysfs), `vid=0, pid=0` y `displayName` usa el nombre base del dispositivo (ej: `"lp0"`).
   - Escritura bloqueante a los dispositivos (`open` + `write` + `fsync`).
   - Si `write` falla con `ENODEV`, `EIO` o `EBADF`, el descriptor se cierra y el plugin considera el dispositivo desconectado.
   - Lectura de estados ESC/POS por USB con `select` + `read`, devolviendo todos los bytes recibidos.
@@ -184,10 +187,10 @@ La API expone métodos como:
 
 ```dart
 class PrinterDeviceInfo {
-  final String instanceId;   // Identificador único del dispositivo
+  final String instanceId;   // Identificador único del dispositivo (ruta /dev/... en Linux)
   final String displayName;  // Nombre original desde el sistema operativo
-  final int vid;             // Vendor ID (0 si no disponible, ej. Linux)
-  final int pid;             // Product ID (0 si no disponible, ej. Linux)
+  final int vid;             // Vendor ID (0 si no se pudo resolver desde sysfs)
+  final int pid;             // Product ID (0 si no se pudo resolver desde sysfs)
 
   // Nombre legible: busca (vid,pid) en la base de datos de impresoras
   // conocidas; si no encuentra, genera "USB Printer (VID:0xPPPP, PID:0xPPPP)".
@@ -276,17 +279,34 @@ Carpeta `linux/` (plugin, no example):
 
 Responsabilidades principales de `ti_printer_plugin.cc`:
 
-- Enumerar posibles impresoras:
+- Enumerar posibles impresoras y resolver VID/PID real desde sysfs:
 
   ```cpp
-  static std::vector<std::string> list_usb_printers() {
-    std::vector<std::string> paths;
-    add_dev_entries_with_prefix("/dev/usb", "lp", paths);
-    add_dev_entries_with_prefix("/dev", "ttyUSB", paths);
-    add_dev_entries_with_prefix("/dev", "ttyACM", paths);
-    return paths;
+  static std::vector<PrinterDeviceInfo> list_usb_printers() {
+    std::vector<PrinterDeviceInfo> printers;
+    auto add_entries = [&](const std::string &dir, const std::string &pref) {
+      // ... enumerar /dev/usb/lp*, /dev/ttyUSB*, /dev/ttyACM*
+      for (auto &path : paths) {
+        // Resolver VID/PID desde sysfs
+        std::string sysfs = resolve_sysfs_path(path);
+        if (!sysfs.empty()) {
+          auto vp = read_vid_pid_from_sysfs(sysfs);
+          info.vid = vp.first;
+          info.pid = vp.second;
+        }
+        printers.push_back(info);
+      }
+    };
+    add_entries("/dev/usb", "lp");
+    add_entries("/dev", "ttyUSB");
+    add_entries("/dev", "ttyACM");
+    return printers;
   }
   ```
+
+  `resolve_sysfs_path()` sigue el symlink `/sys/dev/char/<major>:<minor>` y
+  `read_vid_pid_from_sysfs()` camina hacia arriba en el árbol sysfs buscando
+  `idVendor` / `idProduct`. Sin dependencias externas (solo POSIX).
 
 - Abrir/cerrar puerto:
 

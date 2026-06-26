@@ -4,16 +4,11 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:ti_printer_plugin/esc_pos_utils_platform/esc_pos_utils_platform.dart';
 import 'package:ti_printer_plugin/ti_printer_plugin.dart';
 import 'package:ti_printer_plugin_example/ui/item.dart';
 import 'package:ti_printer_plugin_example/uils/printer_status_interpreter.dart';
 
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/barcode.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/capability_profile.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/enums.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/generator.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/pos_column.dart';
-import 'package:ti_printer_plugin/esc_pos_utils_platform/src/pos_styles.dart';
 import '../models/printer_state.dart';
 import 'ticket_builder.dart';
 
@@ -553,3 +548,4 @@ class PrinterController extends ChangeNotifier {
     _update((s) => s.copyWith(logs: []));
   }
 }
+

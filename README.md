@@ -442,7 +442,7 @@ await plugin.closeSerialPort();
 
 La API expone métodos para leer el estado enviando comandos ESC/POS (DLE EOT).  
 Desde tu app podés usar cualquier librería para generar esos comandos ESC/POS.  
-En el ejemplo se usa `esc_pos_utils_platform`:
+En el ejemplo se usa la API pública del barrel `package:ti_printer_plugin/esc_pos_utils_platform/esc_pos_utils_platform.dart`:
 
 ```dart
 final profile = await CapabilityProfile.load();
@@ -466,6 +466,10 @@ if (rspOnline.isEmpty) {
 
 // Si la impresora devuelve mas de un byte, el plugin entrega la respuesta completa.
 ```
+
+`CapabilityProfile.load()` resuelve `capabilities.json` desde los assets del
+propio paquete `ti_printer_plugin`, asi que tu app consumidora no necesita
+declarar ni copiar ese archivo en su propio `pubspec.yaml`.
 
 Lo que hagas con esos bytes de respuesta (interpretar flags, actualizar UI, etc.) ya es responsabilidad de tu aplicación.  
 El código de ejemplo (`PrinterStatusInterpreter`) muestra una posible forma de hacerlo.
@@ -786,3 +790,4 @@ copias del Software, y a permitir a las personas a las que se les proporcione el
 Software que lo hagan.
 
 ```
+

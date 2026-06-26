@@ -1,3 +1,14 @@
+## 1.0.14
+
+- **Carga correcta de `CapabilityProfile` desde assets del paquete:**
+  - `CapabilityProfile.load()` y `CapabilityProfile.getAvailableProfiles()` ahora resuelven `capabilities.json` usando la clave de asset del paquete `packages/ti_printer_plugin/assets/resources/capabilities.json`.
+  - La app consumidora ya no necesita declarar ni copiar `assets/resources/capabilities.json` en su propio `pubspec.yaml`.
+  - Agregada prueba unitaria para validar la carga del perfil y el listado de perfiles usando un mock del canal de assets.
+
+- **Ejemplo desacoplado de internals:**
+  - `example/lib/logic/printer_controller.dart` y `example/lib/logic/ticket_builder.dart` ahora importan `package:ti_printer_plugin/esc_pos_utils_platform/esc_pos_utils_platform.dart` en lugar de rutas `src/...`.
+  - La documentación aclara que el barrel público es la forma recomendada de consumir la librería ESC/POS incluida en el plugin.
+
 ## 1.0.13
 
 - **Reestructuración de directorios:**

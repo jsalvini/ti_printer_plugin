@@ -18,11 +18,12 @@ class CodePage {
 class CapabilityProfile {
   CapabilityProfile._internal(this.name, this.codePages);
 
+  static const String _capabilitiesAssetKey =
+      'packages/ti_printer_plugin/assets/resources/capabilities.json';
+
   /// Public factory
   static Future<CapabilityProfile> load({String name = 'default'}) async {
-    final content = await rootBundle
-        .loadString('assets/resources/capabilities.json');
-    Map capabilities = json.decode(content);
+    final capabilities = await _loadCapabilities();
 
     var profile = capabilities['profiles'][name];
 
@@ -55,9 +56,7 @@ class CapabilityProfile {
   }
 
   static Future<List<dynamic>> getAvailableProfiles() async {
-    final content = await rootBundle
-        .loadString('assets/resources/capabilities.json');
-    Map capabilities = json.decode(content);
+    final capabilities = await _loadCapabilities();
 
     var profiles = capabilities['profiles'];
 
@@ -73,5 +72,10 @@ class CapabilityProfile {
     });
 
     return res;
+  }
+
+  static Future<Map> _loadCapabilities() async {
+    final content = await rootBundle.loadString(_capabilitiesAssetKey);
+    return json.decode(content) as Map;
   }
 }

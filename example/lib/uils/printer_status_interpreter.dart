@@ -15,7 +15,10 @@ class PrinterStatusInterpreter {
       return;
     }
 
-    final int b = status[0];
+    // Algunas impresoras/devices USB devuelven bytes acumulados de consultas
+    // anteriores. Para DLE EOT el estado util esperado es de 1 byte, asi que
+    // tomamos el ultimo recibido, que suele corresponder a la consulta actual.
+    final int b = status.last;
 
     // bit 3 = 0 -> online, 1 -> offline
     final bool offline = (b & 0x08) != 0;
@@ -37,7 +40,10 @@ class PrinterStatusInterpreter {
       return;
     }
 
-    final int b = status[0];
+    // Algunas impresoras/devices USB devuelven bytes acumulados de consultas
+    // anteriores. Para DLE EOT el estado util esperado es de 1 byte, asi que
+    // tomamos el ultimo recibido, que suele corresponder a la consulta actual.
+    final int b = status.last;
 
     // bit 2: 1 = tapa abierta
     final bool coverOpen = (b & 0x04) != 0;
@@ -62,7 +68,10 @@ class PrinterStatusInterpreter {
       return;
     }
 
-    final int b = status[0];
+    // Algunas impresoras/devices USB devuelven bytes acumulados de consultas
+    // anteriores. Para DLE EOT el estado util esperado es de 1 byte, asi que
+    // tomamos el ultimo recibido, que suele corresponder a la consulta actual.
+    final int b = status.last;
 
     // bits 5–6: 11 = sin papel (paper end)
     final bool paperEnd = (b & 0x60) == 0x60;
@@ -75,3 +84,4 @@ class PrinterStatusInterpreter {
     cb(nearEnd, present);
   }
 }
+

@@ -1,3 +1,12 @@
+## 1.0.15
+
+- **Corrección en interpretación de estado USB:**
+  - `printer_status_interpreter.dart`: Cambia `status[0]` → `status.last` para manejar impresoras que devuelven bytes acumulados de consultas anteriores.
+  - `printer_controller.dart`: Agrega pausa de 80ms (`_usbStatusCommandGap`) entre comandos DLE EOT en USB para evitar superposición de respuestas.
+
+- **Corrección apertura puerto USB en Windows:**
+  - `ti_printer_plugin.cpp`: Pasa `&devInfoData` directamente a `SetupDiGetDeviceInterfaceDetail` eliminando llamada redundante a `SetupDiEnumDeviceInfo`.
+
 ## 1.0.14
 
 - **Carga correcta de `CapabilityProfile` desde assets del paquete:**

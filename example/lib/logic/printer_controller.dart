@@ -29,6 +29,8 @@ class PrinterController extends ChangeNotifier {
   bool _usbPolling = false;
   bool get isUsbMonitoring => _usbMonitorTimer != null;
 
+  static const Duration _usbStatusCommandGap = Duration(milliseconds: 80);
+
   // ===== Helpers internos =====
 
   Future<Generator> _getStatusGenerator() async {
@@ -81,6 +83,8 @@ class PrinterController extends ChangeNotifier {
       },
     );
 
+    await Future.delayed(_usbStatusCommandGap);
+
     // ===== 2) DLE EOT 4 – roll paper sensor =====
     final paperCmd = Uint8List.fromList(generator.paperSensorStatus());
     _addLog('[USB] CMD paper: ${_bytesToHex(paperCmd)}');
@@ -95,6 +99,8 @@ class PrinterController extends ChangeNotifier {
         },
       );
     }
+
+    await Future.delayed(_usbStatusCommandGap);
 
     // ===== 3) DLE EOT 2 – offline cause =====
     final offCmd = Uint8List.fromList(generator.offLineStatus());
@@ -243,7 +249,6 @@ class PrinterController extends ChangeNotifier {
         },
       );
     }
-
     // DLE EOT 4 – papel
     final paperCmd = Uint8List.fromList(generator.paperSensorStatus());
     _addLog('[SERIAL] CMD paper: ${_bytesToHex(paperCmd)}');
@@ -260,7 +265,6 @@ class PrinterController extends ChangeNotifier {
         },
       );
     }
-
     // DLE EOT 2 – offline cause
     final offCmd = Uint8List.fromList(generator.offLineStatus());
     _addLog('[SERIAL] CMD offline: ${_bytesToHex(offCmd)}');
@@ -348,6 +352,8 @@ class PrinterController extends ChangeNotifier {
       );
     }
 
+    await Future.delayed(_usbStatusCommandGap);
+
     // DLE EOT 4 – papel
     final paperCmd = Uint8List.fromList(generator.paperSensorStatus());
     _addLog('[USB] CMD paper: ${_bytesToHex(paperCmd)}');
@@ -364,6 +370,8 @@ class PrinterController extends ChangeNotifier {
         },
       );
     }
+
+    await Future.delayed(_usbStatusCommandGap);
 
     // DLE EOT 2 – offline cause
     final offCmd = Uint8List.fromList(generator.offLineStatus());
@@ -548,4 +556,3 @@ class PrinterController extends ChangeNotifier {
     _update((s) => s.copyWith(logs: []));
   }
 }
-

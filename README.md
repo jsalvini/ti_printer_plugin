@@ -378,7 +378,8 @@ Algunos archivos relevantes (solo ejemplo, **no forman parte del plugin**):
   Modelo de estado inmutable (con Equatable).
 
 - `example/lib/uils/printer_status_interpreter.dart`  
-  Traduce el byte de respuesta ESC/POS (estado) a flags booleanos.
+  Traduce el byte de respuesta ESC/POS (estado) a flags booleanos.  
+  Usa `status.last` en lugar de `status[0]` para manejar impresoras USB que acumulan bytes de consultas anteriores.
 
 Puedes tomar el código del example como referencia para tu propia app, pero no es parte de la API pública del plugin.
 
@@ -532,10 +533,12 @@ El plugin ofrece los bloques básicos (lectura de estado vía `readStatusUsb`).
 En la app de ejemplo se construye un **monitor** que, cada cierto intervalo, hace:
 
 1. Envía `DLE EOT 1` para saber si la impresora está online.
-2. Envía `DLE EOT 4` para saber el estado del papel.
-3. Envía `DLE EOT 2` para obtener causas de offline.
-4. Interpreta los bytes con un helper (`PrinterStatusInterpreter`).
-5. Actualiza un `PrinterState` y notifica a la UI.
+2. Espera 80ms (`_usbStatusCommandGap`) entre comandos para evitar superposición de respuestas en USB.
+3. Envía `DLE EOT 4` para saber el estado del papel.
+4. Espera otros 80ms.
+5. Envía `DLE EOT 2` para obtener causas de offline.
+6. Interpreta los bytes con un helper (`PrinterStatusInterpreter`) que usa `status.last` para tomar el último byte recibido (las impresoras USB pueden acumular respuestas de consultas anteriores).
+7. Actualiza un `PrinterState` y notifica a la UI.
 
 Ese monitor está implementado en `PrinterController.startUsbAutoMonitor` dentro de `example/` y usa un `Timer.periodic`.  
 En tu aplicación podés reutilizar el enfoque o implementar tu propia lógica de monitoreo.

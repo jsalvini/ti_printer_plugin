@@ -402,14 +402,16 @@ bool TiPrinterPlugin::OpenUsbPort(const std::string& device_instance_id) {
         PSP_DEVICE_INTERFACE_DETAIL_DATA deviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)buffer.data();
         deviceInterfaceDetailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
 
-        if (!SetupDiGetDeviceInterfaceDetail(deviceInfoSet, &deviceInterfaceData, deviceInterfaceDetailData, requiredSize, NULL, NULL)) {
-            continue;
-        }
-
         SP_DEVINFO_DATA devInfoData;
         devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
 
-        if (!SetupDiEnumDeviceInfo(deviceInfoSet, i, &devInfoData)) {
+        if (!SetupDiGetDeviceInterfaceDetail(
+                deviceInfoSet,
+                &deviceInterfaceData,
+                deviceInterfaceDetailData,
+                requiredSize,
+                NULL,
+                &devInfoData)) {
             continue;
         }
 
